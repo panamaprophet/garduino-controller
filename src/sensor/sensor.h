@@ -1,0 +1,17 @@
+#include <Arduino.h>
+#include <DHT.h>
+
+typedef void readCallback(float humidity, float temperature);
+typedef void errorCallback(uint8_t error);
+
+class Sensor {
+    private:
+        DHT22 sensor;
+        Ticker ticker;
+
+    public:
+        void setPin(uint8_t pin);
+        void setReadInterval(unsigned long interval);
+        void setHandlers(readCallback& onRead, errorCallback& onError);
+        const char* getLastError();
+};
