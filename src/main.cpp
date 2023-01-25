@@ -1,8 +1,8 @@
 #include <Arduino.h>
 #include <Ticker.h>
+#include <LittleFS.h>
 #include <vector>
 #include <string>
-#include <secrets.h>
 
 #include <wifi/wifi.h>
 #include <mqtt/mqtt.h>
@@ -23,6 +23,8 @@ Ticker updateTicker;
 WirelessNetwork wifi;
 Sensor sensor;
 Mqtt mqtt;
+
+std::string controllerId = "";
 
 const int LIGHT_PIN = 10;
 const int FAN_PIN = 11;
@@ -70,7 +72,7 @@ void handleRebootMessage(const char* topic, const char* message) {
 void sendEvent(const char* payload) {
   Serial.println("sending event...");
 
-  mqtt.publish(("controllers/" + std::string(CONTROLLER_ID) + "/events/pub").c_str(), payload);
+  mqtt.publish(("controllers/" + controllerId + "/events/pub").c_str(), payload);
 }
 
 void onSensorData(float h, float t) {
@@ -87,22 +89,40 @@ void onSensorError(uint8_t error) {
   sendEvent(payload.c_str());
 }
 
+const char* readFile(const char * name) {
+  auto file = LittleFS.open(name, "r");
+  auto result = file.readString();
+
+  file.close();
+
+  return result.c_str();
+}
+
 
 void setup() {
+  LittleFS.begin();
   Serial.begin(115200);
 
+  // config.json: { controllerId, host, ssid, password }
+  auto config = readFile("config.json");
+  auto jsonConfig = parseJson(config);
+
+  controllerId = jsonConfig["controllerId"].as<std::string>();
+
+  auto cacert = readFile("root.crt");
+  auto clientCertificate = readFile("controller.cert.pem");
+  auto privateKey = readFile("controller.private.key");
+
   wifi.setTrustAnchors(cacert);
-  wifi.setClientCertificate(client_cert, privkey);
-  wifi.connect(SSID, PASS);
+  wifi.setClientCertificate(clientCertificate, privateKey);
+  wifi.connect(jsonConfig["ssid"], jsonConfig["password"]);
 
   syncTyme();
 
-  mqtt.connect(wifi.getClient(), MQTT_HOST, CONTROLLER_ID);
-
-  mqtt.subscribe(("controllers/" + std::string(CONTROLLER_ID) + "/config/sub").c_str(), handleConfigurationMessage);
-  mqtt.subscribe(("controllers/" + std::string(CONTROLLER_ID) + "/reboot/sub").c_str(), handleRebootMessage);
-
-  mqtt.publish(("controllers/" + std::string(CONTROLLER_ID) + "/config/pub").c_str());
+  mqtt.connect(wifi.getClient(), jsonConfig["host"], controllerId.c_str());
+  mqtt.subscribe(("controllers/" + controllerId + "/config/sub").c_str(), handleConfigurationMessage);
+  mqtt.subscribe(("controllers/" + controllerId + "/reboot/sub").c_str(), handleRebootMessage);
+  mqtt.publish(("controllers/" + controllerId + "/config/pub").c_str());
 
   sensor.setPin(SENSOR_PIN);
   sensor.setReadInterval(SENSOR_READ_INTERVAL);

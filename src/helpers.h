@@ -8,7 +8,7 @@
 DynamicJsonDocument parseJson(const char* string) {
     Serial.printf("deserializing json = %s\n", string);
 
-    DynamicJsonDocument json(JSON_OBJECT_SIZE(10));
+    DynamicJsonDocument json(JSON_OBJECT_SIZE(14));
     DeserializationError deserializationError = deserializeJson(json, string);
 
     Serial.printf("deserializing result = %s\n", deserializationError.c_str());
