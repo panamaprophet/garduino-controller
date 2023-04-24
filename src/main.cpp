@@ -89,7 +89,7 @@ void onSensorError(uint8_t error) {
   sendEvent(payload.c_str());
 }
 
-const char* readFile(const char * name) {
+const char* readFile(const char* name) {
   auto file = LittleFS.open(name, "r");
   auto result = file.readString();
 
@@ -117,7 +117,7 @@ void setup() {
   wifi.setClientCertificate(clientCertificate, privateKey);
   wifi.connect(jsonConfig["ssid"], jsonConfig["password"]);
 
-  syncTyme();
+  syncTime();
 
   mqtt.connect(wifi.getClient(), jsonConfig["host"], controllerId.c_str());
   mqtt.subscribe(("controllers/" + controllerId + "/config/sub").c_str(), handleConfigurationMessage);

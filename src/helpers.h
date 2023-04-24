@@ -16,7 +16,7 @@ DynamicJsonDocument parseJson(const char* string) {
     return json;
 };
 
-auto syncTyme() {
+auto syncTime() {
     Serial.print("time sync");
 
     configTime(0, 0, "pool.ntp.org", "time.nist.gov");
