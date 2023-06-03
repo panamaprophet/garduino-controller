@@ -89,13 +89,13 @@ void onSensorError(uint8_t error) {
   sendEvent(payload.c_str());
 }
 
-const char* readFile(const char* name) {
+const auto readFile(const char* name) {
   auto file = LittleFS.open(name, "r");
   auto result = file.readString();
 
   file.close();
 
-  return result.c_str();
+  return result;
 }
 
 
@@ -104,7 +104,7 @@ void setup() {
   Serial.begin(115200);
 
   // config.json: { controllerId, host, ssid, password }
-  auto config = readFile("config.json");
+  auto config = readFile("config.json").c_str();
   auto jsonConfig = parseJson(config);
 
   controllerId = jsonConfig["controllerId"].as<std::string>();
@@ -113,9 +113,15 @@ void setup() {
   auto clientCertificate = readFile("controller.cert.pem");
   auto privateKey = readFile("controller.private.key");
 
-  wifi.setTrustAnchors(cacert);
-  wifi.setClientCertificate(clientCertificate, privateKey);
-  wifi.connect(jsonConfig["ssid"], jsonConfig["password"]);
+  wifi.setTrustAnchors(cacert.c_str());
+  wifi.setClientCertificate(clientCertificate.c_str(), privateKey.c_str());
+
+  auto isWiFiConnected = wifi.connect(jsonConfig["ssid"], jsonConfig["password"]);
+
+  if (!isWiFiConnected) {
+    Serial.println("wifi connection error");
+    return;
+  }
 
   syncTime();
 

@@ -25,7 +25,15 @@ void Mqtt::connect(WiFiClientSecure& wifiClient, const char* host, const char* i
     client.connect(id);
 
     if (!client.connected()) {
-        Serial.println("mqtt connection timeout");
+        Serial.printf("mqtt connection failed. error code = %d\r\n", client.state());
+
+        char sslErrorMessage[80];
+	    int sslErrorCode = wifiClient.getLastSSLError(sslErrorMessage, sizeof(sslErrorMessage));
+
+        if (sslErrorCode) {
+            Serial.printf("ssl error: %d: %s\r\n", sslErrorCode, sslErrorMessage);
+        }
+
         return;
     }
 
