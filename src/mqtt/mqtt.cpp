@@ -5,12 +5,12 @@ void Mqtt::connect(WiFiClientSecure& wifiClient, const char* host, const char* i
     client.setServer(host, port);
 
     client.setCallback([&](char* topic, byte* payload, unsigned int length) {
-        Serial.printf("received from %s:\n    %s\n", topic, (char*)payload);
-
         payload[length] = '\0';
 
         const char* payloadString = (char*)payload;
         const auto& cb = callbacks.find(topic);
+
+        Serial.printf("received from %s: %s\n", topic, payloadString);
 
         if (cb == callbacks.end()) {
             Serial.println("no callbacks found");
