@@ -7,7 +7,7 @@ bool WirelessNetwork::connect(const char* ssid, const char* password) {
     Serial.println();
     Serial.print("connecting to wifi");
 
-    unsigned int timeout = 5000;
+    unsigned int timeout = 15000;
     unsigned int step = 500;
 
     while (WiFi.status() != WL_CONNECTED) {
