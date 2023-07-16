@@ -3,6 +3,7 @@
 #include <LittleFS.h>
 #include <vector>
 #include <string>
+#include <algorithm>
 
 #include <wifi/wifi.h>
 #include <mqtt/mqtt.h>
@@ -26,21 +27,53 @@ Mqtt mqtt;
 
 std::string controllerId = "";
 
-const int LIGHT_PIN = 10;
-const int FAN_PIN = 11;
-const int SENSOR_PIN = 12;
+const int LIGHT_PIN = 14;
+const int FAN_PIN = 12;
+const int SENSOR_PIN = 2;
+
+const int FAN_SPEED_MAX = 255;
+const int FAN_SPEED_STEP = 50;
 
 const unsigned long UPDATE_INTERVAL = 10 * 60 * 1000;
 const unsigned long SENSOR_READ_INTERVAL = 30 * 1000;
 
-void handleSwitch() {
-  unsigned long switchIn = isOn ? (86400000 - duration) : duration;
+unsigned long previousFanCheckInterval = millis();
+unsigned long fanCheckInterval = 5000;
 
+std::vector<int> temperatureHistory;
+
+
+int getTemperatureStabilityFactor(std::vector<int> temperatures) {
+  int items_count = static_cast<int>(temperatures.size());
+  int slice_size = 5;
+
+  int n = std::min(slice_size, items_count);
+  int start_index = items_count - n + 1;
+
+  int result = 0;
+
+  for (int i = start_index; i < items_count; i++) {
+    if (temperatures[i - 1] < temperatures[i]) {
+      result += 1;
+    }
+
+    if (temperatures[i -1] > temperatures[i]) {
+      result -= 1;
+    }
+  }
+
+  return result;
+}
+
+
+void handleSwitch() {
   isOn = !isOn;
 
-  Serial.printf("switching light %s\n", isOn ? "on" : "off");
+  auto switchIn = isOn ? (86400000 - duration) : duration;
 
-  digitalWrite(LIGHT_PIN, isOn ? HIGH : LOW);
+  Serial.printf("light is %s. will be switched in %lu hours.\n", isOn ? "on" : "off", switchIn / 1000 / 60 / 60);
+
+  analogWrite(LIGHT_PIN, isOn ? 255 : 0);
 
   ticker.once_ms(switchIn, handleSwitch);
 }
@@ -53,24 +86,38 @@ void handleConfigurationMessage(const char* topic, const char* message) {
   fanSpeed = json["fanSpeed"];
   thresholdTemperature = json["thresholdTemperature"];
 
-  Serial.printf(
-    "light is %s. will be switched in %lu hours. fan speed is %d\n",
-    isOn ? "on" : "off",
-    json["switchIn"].as<unsigned long>() / 1000 / 60 / 60,
-    fanSpeed
-  );
+  unsigned long switchIn = json["switchIn"];
 
-  ticker.once_ms(json["switchIn"], handleSwitch);
+  analogWrite(FAN_PIN, fanSpeed);
+  analogWrite(LIGHT_PIN, isOn ? 255: 0);
 
-  digitalWrite(LIGHT_PIN, isOn ? HIGH : LOW);
+  ticker.once_ms(switchIn, handleSwitch);
+
+  Serial.printf("light is %s. will be switched in %lu hours. Fan speed is %u\n", isOn ? "on" : "off", switchIn / 1000 / 60 / 60, fanSpeed);
 }
 
 void handleRebootMessage(const char* topic, const char* message) {
   ESP.restart();
 }
 
+void handleStatusMessage(const char* topic, const char* message) {
+  auto payload = (
+    "{\"temperature\":" + String(temperature) +
+    ",\"humidity\":" + String(humidity) +
+    ",\"fanSpeed\": " + String(fanSpeed) +
+    ",\"stabilityFactor\": " + String(getTemperatureStabilityFactor(temperatureHistory)) +
+    ",\"isOn\": " + (isOn ? "true" : "false") +
+    "}");
+
+  mqtt.publish(("controllers/" + controllerId + "/status/pub").c_str(), payload.c_str());
+}
+
 void sendEvent(const char* payload) {
-  Serial.println("sending event...");
+  if (DEBUG_NO_MQTT_EVENTS) {
+    Serial.printf("dummy event send with payload %s\r\n", payload);
+
+    return;
+  }
 
   mqtt.publish(("controllers/" + controllerId + "/events/pub").c_str(), payload);
 }
@@ -78,13 +125,29 @@ void sendEvent(const char* payload) {
 void onSensorData(float h, float t) {
   humidity = h;
   temperature = t;
+
+  temperatureHistory.push_back(t);
+
+  int temperatureFactor = getTemperatureStabilityFactor(temperatureHistory);
+  int temperatureFactorThreshold = 2;
+
+  bool hitFactorThreshold = temperatureFactorThreshold <= temperatureFactor;
+  bool hitTemperatureThreshold = temperature >= thresholdTemperature;
+
+  if (hitFactorThreshold || hitTemperatureThreshold) {
+    fanSpeed = hitFactorThreshold ? fanSpeed + FAN_SPEED_STEP : FAN_SPEED_MAX;
+
+    Serial.printf("temperature factor is raising, setting fan speed to %d\n", fanSpeed);
+
+    analogWrite(FAN_PIN, fanSpeed);
+  }
+
+  Serial.printf("temperature = %.0f, humidity = %.0f, stability factor = %d\n", temperature, humidity, temperatureFactor);
 }
 
 void onSensorError(uint8_t error) {
   auto lastError = sensor.getLastError();
   auto payload = "{\"errorMessage\":\"" + std::string(lastError) + "\"}";
-
-  Serial.printf("sensor error = %s\n", lastError);
 
   sendEvent(payload.c_str());
 }
@@ -126,13 +189,18 @@ void setup() {
   syncTime();
 
   mqtt.connect(wifi.getClient(), jsonConfig["host"], controllerId.c_str());
+
   mqtt.subscribe(("controllers/" + controllerId + "/config/sub").c_str(), handleConfigurationMessage);
   mqtt.subscribe(("controllers/" + controllerId + "/reboot/sub").c_str(), handleRebootMessage);
+  mqtt.subscribe(("controllers/" + controllerId + "/status/sub").c_str(), handleStatusMessage);
+
   mqtt.publish(("controllers/" + controllerId + "/config/pub").c_str());
 
   sensor.setPin(SENSOR_PIN);
   sensor.setReadInterval(SENSOR_READ_INTERVAL);
   sensor.setHandlers(onSensorData, onSensorError);
+
+  sensor.read();
 
   updateTicker.attach_ms(UPDATE_INTERVAL, [&]() {
     const auto payload = "{\"temperature\": " + std::to_string(temperature) + ",\"humidity\": " + std::to_string(humidity) + "}";
