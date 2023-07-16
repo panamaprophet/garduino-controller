@@ -6,12 +6,13 @@ typedef void errorCallback(uint8_t error);
 
 class Sensor {
     private:
-        DHT22 sensor;
+        DHT11 sensor;
         Ticker ticker;
 
     public:
         void setPin(uint8_t pin);
         void setReadInterval(unsigned long interval);
         void setHandlers(readCallback& onRead, errorCallback& onError);
+        void read();
         const char* getLastError();
 };

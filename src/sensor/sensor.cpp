@@ -17,3 +17,7 @@ void Sensor::setHandlers(readCallback& onRead, errorCallback& onError) {
 const char* Sensor::getLastError() {
     return sensor.getError();
 }
+
+void Sensor::read() {
+    sensor.read();
+}
