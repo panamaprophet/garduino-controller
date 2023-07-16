@@ -8,6 +8,7 @@ class Sensor {
     private:
         DHT11 sensor;
         Ticker ticker;
+        int errorCount = 0;
 
     public:
         void setPin(uint8_t pin);

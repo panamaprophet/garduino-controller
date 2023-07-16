@@ -11,7 +11,17 @@ void Sensor::setReadInterval(unsigned long interval) {
 
 void Sensor::setHandlers(readCallback& onRead, errorCallback& onError) {
     sensor.onData(onRead);
-    sensor.onError(onError);
+    sensor.onError([&](uint8_t error) {
+        errorCount++;
+
+        if (errorCount <= 5) {
+            // Serial.printf("trying to re read sensor, %d\n", errorCount);
+            sensor.read();
+        } else {
+            errorCount = 0;
+            onError(error);
+        }
+    });
 };
 
 const char* Sensor::getLastError() {

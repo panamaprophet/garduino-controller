@@ -30,9 +30,7 @@ void Mqtt::connect(WiFiClientSecure& wifiClient, const char* host, const char* i
         char sslErrorMessage[80];
 	    int sslErrorCode = wifiClient.getLastSSLError(sslErrorMessage, sizeof(sslErrorMessage));
 
-        if (sslErrorCode) {
-            Serial.printf("ssl error: %d: %s\r\n", sslErrorCode, sslErrorMessage);
-        }
+        Serial.printf("ssl error: %d: %s\r\n", sslErrorCode, sslErrorMessage);
 
         return;
     }

@@ -171,10 +171,14 @@ void setup() {
   auto jsonConfig = parseJson(config);
 
   controllerId = jsonConfig["controllerId"].as<std::string>();
+  
+  auto host = jsonConfig["host"].as<std::string>();
 
   auto cacert = readFile("root.crt");
   auto clientCertificate = readFile("controller.cert.pem");
   auto privateKey = readFile("controller.private.key");
+
+  Serial.printf("controller Id = %s\nhost = %s\n", controllerId.c_str(), host.c_str());
 
   wifi.setTrustAnchors(cacert.c_str());
   wifi.setClientCertificate(clientCertificate.c_str(), privateKey.c_str());
@@ -188,7 +192,7 @@ void setup() {
 
   syncTime();
 
-  mqtt.connect(wifi.getClient(), jsonConfig["host"], controllerId.c_str());
+  mqtt.connect(wifi.getClient(), host.c_str(), controllerId.c_str());
 
   mqtt.subscribe(("controllers/" + controllerId + "/config/sub").c_str(), handleConfigurationMessage);
   mqtt.subscribe(("controllers/" + controllerId + "/reboot/sub").c_str(), handleRebootMessage);
