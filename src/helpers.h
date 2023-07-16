@@ -6,12 +6,12 @@
 
 
 DynamicJsonDocument parseJson(const char* string) {
-    Serial.printf("deserializing json = %s\n", string);
-
     DynamicJsonDocument json(JSON_OBJECT_SIZE(14));
     DeserializationError deserializationError = deserializeJson(json, string);
 
-    Serial.printf("deserializing result = %s\n", deserializationError.c_str());
+    if (deserializationError != DeserializationError::Ok) {
+        Serial.printf("deserialization error: %s\n", deserializationError.c_str());
+    }
 
     return json;
 };
