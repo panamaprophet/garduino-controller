@@ -15,7 +15,6 @@ void Sensor::setHandlers(readCallback& onRead, errorCallback& onError) {
         errorCount++;
 
         if (errorCount <= 5) {
-            // Serial.printf("trying to re read sensor, %d\n", errorCount);
             sensor.read();
         } else {
             errorCount = 0;

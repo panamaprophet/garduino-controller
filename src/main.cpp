@@ -1,30 +1,37 @@
 #include <Arduino.h>
 #include <Ticker.h>
 #include <LittleFS.h>
-#include <vector>
 #include <string>
-
-#include <wifi/wifi.h>
-#include <mqtt/mqtt.h>
+#include <time.h>
 #include <sensor/sensor.h>
-#include <helpers.h>
+#include <PubSubClient.h>
+#include <ESP8266WiFi.h>
+#include <WiFiClientSecure.h>
+#include <ArduinoJson.h>
+
+// @todo: send event on switch
+// @todo: send event on fan speed change
+// @todo: send event on threshold temperature hit
+// @todo: send event on run
 
 bool isOn;
+
 unsigned long duration;
-unsigned int thresholdTemperature;
+unsigned int thresholdTemperature = 30;
 unsigned int fanSpeed;
+unsigned long switchIn;
 
 float humidity;
 float temperature;
-
-Ticker ticker;
-Ticker updateTicker;
-
-WirelessNetwork wifi;
-Sensor sensor;
-Mqtt mqtt;
+float stabilityFactor = 0;
 
 std::string controllerId = "";
+
+Sensor sensor;
+Ticker ticker;
+Ticker updateTicker;
+BearSSL::WiFiClientSecure wifi;
+PubSubClient mqtt(wifi);
 
 const int LIGHT_PIN = 14;
 const int FAN_PIN = 12;
@@ -36,191 +43,293 @@ const int FAN_SPEED_STEP = 50;
 const unsigned long UPDATE_INTERVAL = 10 * 60 * 1000;
 const unsigned long SENSOR_READ_INTERVAL = 30 * 1000;
 
-unsigned long previousFanCheckInterval = millis();
-unsigned long fanCheckInterval = 5000;
 
-std::vector<int> temperatureHistory;
+time_t syncTime() {
+    Serial.print("time sync...");
 
+    configTime(0, 0, "pool.ntp.org", "time.nist.gov");
 
-int getTemperatureStabilityFactor(std::vector<int> temperatures) {
-  int items_count = static_cast<int>(temperatures.size());
-  int slice_size = 5;
+    time_t now = time(nullptr);
 
-  int n = slice_size >= items_count ? items_count : slice_size;
-  int start_index = items_count - n + 1;
-
-  int result = 0;
-
-  for (int i = start_index; i < items_count; i++) {
-    if (temperatures[i - 1] < temperatures[i]) {
-      result += 1;
+    while (now < 8 * 3600 * 2) {
+        delay(500);
+        Serial.print(".");
+        now = time(nullptr);
     }
 
-    if (temperatures[i -1] > temperatures[i]) {
-      result -= 1;
-    }
-  }
+    struct tm timeinfo;
 
-  return result;
+    gmtime_r(&now, &timeinfo);
+
+    Serial.printf("\ncurrent time = %s", asctime(&timeinfo));
+
+    return now;
 }
-
 
 void handleSwitch() {
   isOn = !isOn;
 
-  auto switchIn = isOn ? (86400000 - duration) : duration;
+  switchIn = isOn ? (86400000 - duration) : duration;
 
-  Serial.printf("light is %s. will be switched in %lu hours.\n", isOn ? "on" : "off", switchIn / 1000 / 60 / 60);
+  Serial.printf("switching. light is %s. will be switched in %lu hours (%lu ms).\n", isOn ? "on" : "off", switchIn / 1000 / 60 / 60, switchIn);
 
-  analogWrite(LIGHT_PIN, isOn ? 255 : 0);
+  digitalWrite(LIGHT_PIN, isOn ? LOW : HIGH);
 
   ticker.once_ms(switchIn, handleSwitch);
 }
 
-void handleConfigurationMessage(const char* topic, const char* message) {
-  Serial.println("handling configuration message");
-
-  const auto json = parseJson(message);
-
-  isOn = json["isOn"];
-  duration = json["duration"];
-  fanSpeed = json["fanSpeed"];
-  thresholdTemperature = json["thresholdTemperature"].as<unsigned int>();
-
-  unsigned long switchIn = json["switchIn"];
-
-  analogWrite(FAN_PIN, fanSpeed);
-  analogWrite(LIGHT_PIN, isOn ? 255: 0);
-
-  ticker.once_ms(switchIn, handleSwitch);
-
-  Serial.printf("light is %s. will be switched in %lu hours. fan speed is %u. threshold temperature is %u\n", isOn ? "on" : "off", switchIn / 1000 / 60 / 60, fanSpeed, thresholdTemperature);
-}
-
-void handleRebootMessage(const char* topic, const char* message) {
+void handleRebootMessage() {
   ESP.restart();
 }
 
-void handleStatusMessage(const char* topic, const char* message) {
-  char payload[85];
+void handleStatusMessage() {
+  char payload[100];
 
   sprintf(
     payload, 
-    "{\"temperature\":%.2f,\"humidity\":%.2f,\"isOn\":%s,\"fanSpeed\":%d,\"stabilityFactor\":%d}", 
+    "{\"temperature\":%.2f,\"humidity\":%.2f,\"isOn\":%s,\"fanSpeed\":%d,\"stabilityFactor\":%.2f}", 
     temperature, 
     humidity, 
     isOn ? "true" : "false", 
-    fanSpeed, 
-    getTemperatureStabilityFactor(temperatureHistory)
+    fanSpeed,
+    stabilityFactor
   );
 
   mqtt.publish(("controllers/" + controllerId + "/status/pub").c_str(), payload);
 }
 
-void sendEvent(const char* payload) {
-  if (DEBUG_NO_MQTT_EVENTS) {
-    Serial.printf("dummy event send with payload %s\r\n", payload);
+void handleConfigurationMessage(const byte* message) {
+    Serial.println("mqtt: configuration received");
+    
+    StaticJsonDocument<200> json;
+    deserializeJson(json, (char *)message);
 
-    return;
-  }
+    isOn = json["isOn"].as<boolean>();
+    duration = json["duration"].as<unsigned long>();
+    fanSpeed = json["fanSpeed"].as<unsigned int>();
+    thresholdTemperature = json["thresholdTemperature"].as<unsigned int>();
+    switchIn = json["switchIn"].as<unsigned long>();
+
+    json.clear();
+
+    analogWrite(FAN_PIN, fanSpeed);
+    digitalWrite(LIGHT_PIN, isOn ? LOW : HIGH);
+
+    ticker.once_ms(switchIn, handleSwitch);
+    sensor.read();
+
+    Serial.printf("light is %s. will be switched in %lu hours (%lu ms). fan speed is %u. threshold temperature is %u\n", isOn ? "on" : "off", switchIn / 1000 / 60 / 60, switchIn, fanSpeed, thresholdTemperature);
+}
+
+void sendEvent(const char* payload) {
+  Serial.printf("sending update event, payload = %s\n", payload);
 
   mqtt.publish(("controllers/" + controllerId + "/events/pub").c_str(), payload);
 }
 
 void onSensorData(float h, float t) {
+  if (t < temperature) stabilityFactor--;
+  if (t > temperature) stabilityFactor++;
+
   humidity = h;
   temperature = t;
+}
 
-  temperatureHistory.push_back(t);
-
-  int stabilityFactor = getTemperatureStabilityFactor(temperatureHistory);
-  int stabilityFactorThreshold = 2;
-
-  bool hitFactorThreshold = stabilityFactor >= stabilityFactorThreshold;
+void handleFanSpeed() {
+  bool hitFactorThreshold = false; // stabilityFactor >= 2;
   bool hitTemperatureThreshold = temperature >= thresholdTemperature;
 
   if (hitFactorThreshold || hitTemperatureThreshold) {
     fanSpeed = hitTemperatureThreshold ? FAN_SPEED_MAX : fanSpeed + FAN_SPEED_STEP;
 
-    Serial.printf("%s is raising, setting fan speed to %d\n", hitTemperatureThreshold ? "temperature" : "stability factor", fanSpeed);
+    // Serial.printf("%s is raising, setting fan speed to %d\n", hitTemperatureThreshold ? "temperature" : "stability factor", fanSpeed);
 
     analogWrite(FAN_PIN, fanSpeed);
   }
 
-  Serial.printf("temperature = %.0f, humidity = %.0f, stability factor = %d\n", temperature, humidity, stabilityFactor);
+  // Serial.printf("temperature = %.0f, humidity = %.0f, stability factor = %d\n", temperature, humidity, stabilityFactor);
 }
 
 void onSensorError(uint8_t error) {
-  auto lastError = sensor.getLastError();
-  auto payload = "{\"errorMessage\":\"" + std::string(lastError) + "\"}";
-
-  sendEvent(payload.c_str());
+  Serial.printf("error reading sensor data = %s\n", sensor.getLastError());
 }
 
-const auto readFile(const char* name) {
-  auto file = LittleFS.open(name, "r");
-  auto result = file.readString();
+void mqttCallback(char* topic, byte* payload, unsigned int length) {
+  payload[length] = '\0';
 
-  file.close();
+  const std::string mqtt_topic_configuration = "controllers/" + controllerId + "/config/sub";
+  const std::string mqtt_topic_reboot = "controllers/" + controllerId + "/reboot/sub";
+  const std::string mqtt_topic_status = "controllers/" + controllerId + "/status/sub";
 
-  return result;
+  if (mqtt_topic_configuration.compare(topic) == 0) {
+    return handleConfigurationMessage(payload);
+  }
+  
+  if (mqtt_topic_reboot.compare(topic) == 0) {
+    return handleRebootMessage();
+  }
+
+  if (mqtt_topic_status.compare(topic) == 0) {
+    return handleStatusMessage();
+  }
+
+  Serial.println("no handler for message was found");
 }
 
+std::string mqtt_host = "";
+uint16 mqtt_port = 8883;
+
+void mqttConnect() {
+  Serial.printf("mqtt connection: ");
+
+  mqtt.setServer(mqtt_host.c_str(), mqtt_port);
+  mqtt.setCallback(mqttCallback);
+  mqtt.connect(controllerId.c_str());
+
+  Serial.printf("%s\n", mqtt.connected() ? "success" : "fail");
+
+  if (!mqtt.connected()) {
+    char message[80];
+
+    int code = wifi.getLastSSLError(message, sizeof(message));
+
+    Serial.printf("mqtt connection failed. error code = %d\n", mqtt.state());
+    Serial.printf("mqtt connection failed. ssl error = %d: %s\n", code, message);
+
+    return;
+  }
+
+  mqtt.subscribe(("controllers/" + controllerId + "/config/sub").c_str());
+  mqtt.subscribe(("controllers/" + controllerId + "/reboot/sub").c_str());
+  mqtt.subscribe(("controllers/" + controllerId + "/status/sub").c_str());
+}
 
 void setup() {
   LittleFS.begin();
   Serial.begin(115200);
 
-  // config.json: { controllerId, host, ssid, password }
-  auto config = readFile("config.json").c_str();
-  auto jsonConfig = parseJson(config);
+  pinMode(FAN_PIN, OUTPUT);
+  pinMode(LIGHT_PIN, OUTPUT);
 
-  controllerId = jsonConfig["controllerId"].as<std::string>();
-  
-  auto host = jsonConfig["host"].as<std::string>();
+  analogWrite(FAN_PIN, 0);
+  digitalWrite(LIGHT_PIN, HIGH);
 
-  auto cacert = readFile("root.crt");
-  auto clientCertificate = readFile("controller.cert.pem");
-  auto privateKey = readFile("controller.private.key");
+  auto file = LittleFS.open("config.json", "r");
+  auto size = file.size();
 
-  Serial.printf("controller Id = %s\nhost = %s\n", controllerId.c_str(), host.c_str());
+  char *config = new char[size];
 
-  wifi.setTrustAnchors(cacert.c_str());
-  wifi.setClientCertificate(clientCertificate.c_str(), privateKey.c_str());
+  file.readBytes(config, size);
+  file.close();
 
-  auto isWiFiConnected = wifi.connect(jsonConfig["ssid"], jsonConfig["password"]);
+  StaticJsonDocument<200> json;
+  deserializeJson(json, config);
 
-  if (!isWiFiConnected) {
-    Serial.println("wifi connection error");
-    return;
+  controllerId = json["controllerId"].as<std::string>();
+
+  // === root cert ===
+
+  auto rootCertificateFile = LittleFS.open("root.crt", "r");
+  auto rootCertificateSize = rootCertificateFile.size();
+  char *rootCertificateBuffer = new char[rootCertificateSize];
+
+  rootCertificateFile.readBytes(rootCertificateBuffer, rootCertificateSize);
+  rootCertificateFile.close();
+
+  const BearSSL::X509List* cert = new BearSSL::X509List(rootCertificateBuffer);
+
+  wifi.setTrustAnchors(cert);
+
+  // == client cert ===
+
+  auto clientCertificateFile = LittleFS.open("controller.cert.pem", "r");
+  auto clientCertificateSize = clientCertificateFile.size();
+
+  char *clientCertificateBuffer = new char[clientCertificateSize];
+
+  clientCertificateFile.readBytes(clientCertificateBuffer, clientCertificateSize);
+  clientCertificateFile.close();
+
+  //  === private key ===
+
+  auto privateKeyFile = LittleFS.open("controller.private.key", "r");
+  auto privateKeySize = privateKeyFile.size();
+
+  char *privateKeyBuffer = new char[privateKeySize];
+
+  privateKeyFile.readBytes(privateKeyBuffer, privateKeySize);
+  privateKeyFile.close();
+
+  const BearSSL::X509List* clientCertificate = new BearSSL::X509List(clientCertificateBuffer);
+  const BearSSL::PrivateKey* key = new BearSSL::PrivateKey(privateKeyBuffer);
+
+  std::string ssid = json["ssid"].as<std::string>();
+  std::string password = json["password"].as<std::string>();
+
+  wifi.setClientRSACert(clientCertificate, key);
+  WiFi.begin(ssid.c_str(), password.c_str());
+
+  Serial.printf("\nconnecting to wifi");
+
+  unsigned int timeout = 15000;
+  unsigned int step = 500;
+
+  while (WiFi.status() != WL_CONNECTED) {
+    Serial.print('.');
+
+    delay(step);
+    timeout -= step;
+
+    if (timeout <= 0) {
+      Serial.print("timeout");
+    }
   }
+
+  Serial.println();
+  Serial.print("ip = ");
+  Serial.println(WiFi.localIP());
 
   syncTime();
 
-  mqtt.connect(wifi.getClient(), host.c_str(), controllerId.c_str());
-  mqtt.subscribe(("controllers/" + controllerId + "/config/sub").c_str(), handleConfigurationMessage);
-  mqtt.subscribe(("controllers/" + controllerId + "/reboot/sub").c_str(), handleRebootMessage);
-  mqtt.subscribe(("controllers/" + controllerId + "/status/sub").c_str(), handleStatusMessage);
-  mqtt.publish(("controllers/" + controllerId + "/config/pub").c_str());
+  mqtt_host = json["host"].as<std::string>();
+  mqtt_port = 8883;
+
+  json.clear();
+
+  Serial.printf("controller id = %s\nmqtt host = %s\nmqtt port = %d\n", controllerId.c_str(), mqtt_host.c_str(), mqtt_port);
 
   sensor.setPin(SENSOR_PIN);
   sensor.setReadInterval(SENSOR_READ_INTERVAL);
   sensor.setHandlers(onSensorData, onSensorError);
 
   updateTicker.attach_ms(UPDATE_INTERVAL, [&]() {
-    const auto payload = "{\"temperature\": " + std::to_string(temperature) + ",\"humidity\": " + std::to_string(humidity) + "}";
+    char payload[100];
 
-    sendEvent(payload.c_str());
+    sprintf(payload, "{\"temperature\":%.2f,\"humidity\":%.2f}", temperature, humidity);
+
+    sendEvent(payload); 
   });
+
+  LittleFS.end();
+
+  Serial.printf("free memory = %d bytes\n", ESP.getFreeHeap());
+
+  mqttConnect();
+
+  Serial.printf("request config\n");
+
+  mqtt.publish(("controllers/" + controllerId + "/config/pub").c_str(), "{}");
+
+  Serial.printf("setup finished\n");
 }
 
-bool flag = false;
-
 void loop() {
-  if (!flag) {
-      sensor.read();
-      flag = true;
+  if (!mqtt.connected()) {
+    Serial.println("mqtt disconnected. reconnecting...");
+    mqttConnect();
   }
 
   mqtt.loop();
+
+  handleFanSpeed();
 }
