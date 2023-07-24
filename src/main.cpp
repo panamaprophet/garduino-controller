@@ -19,7 +19,8 @@ bool isOn;
 unsigned long duration;
 unsigned int thresholdTemperature = 30;
 unsigned int fanSpeed;
-unsigned long switchIn;
+
+long switchIn;
 
 float humidity;
 float temperature;
@@ -42,7 +43,7 @@ const int FAN_SPEED_STEP = 50;
 
 const unsigned long UPDATE_INTERVAL = 10 * 60 * 1000;
 const unsigned long SENSOR_READ_INTERVAL = 30 * 1000;
-
+const unsigned long CYCLE_TICKER_INTERVAL = 1 * 5000;
 
 time_t syncTime() {
     Serial.print("time sync...");
@@ -66,16 +67,20 @@ time_t syncTime() {
     return now;
 }
 
-void handleSwitch() {
-  isOn = !isOn;
+void handleLightSwitch() {
+  if (switchIn <= 0) {
+    isOn = !isOn;
 
-  switchIn = isOn ? (86400000 - duration) : duration;
+    switchIn = (isOn ? (86400000 - duration) : duration);
 
-  Serial.printf("switching. light is %s. will be switched in %lu hours (%lu ms).\n", isOn ? "on" : "off", switchIn / 1000 / 60 / 60, switchIn);
+    Serial.printf("switching. light is %s. will be switched in %lu hours (%lu ms).\n", isOn ? "on" : "off", switchIn / 1000 / 60 / 60, switchIn);
 
-  digitalWrite(LIGHT_PIN, isOn ? LOW : HIGH);
+    digitalWrite(LIGHT_PIN, isOn ? LOW : HIGH);
 
-  ticker.once_ms(switchIn, handleSwitch);
+    return;
+  }
+
+  switchIn -= CYCLE_TICKER_INTERVAL;
 }
 
 void handleRebootMessage() {
@@ -115,7 +120,6 @@ void handleConfigurationMessage(const byte* message) {
     analogWrite(FAN_PIN, fanSpeed);
     digitalWrite(LIGHT_PIN, isOn ? LOW : HIGH);
 
-    ticker.once_ms(switchIn, handleSwitch);
     sensor.read();
 
     Serial.printf("light is %s. will be switched in %lu hours (%lu ms). fan speed is %u. threshold temperature is %u\n", isOn ? "on" : "off", switchIn / 1000 / 60 / 60, switchIn, fanSpeed, thresholdTemperature);
@@ -309,6 +313,8 @@ void setup() {
 
     sendEvent(payload); 
   });
+
+  ticker.attach_ms(CYCLE_TICKER_INTERVAL, handleLightSwitch);
 
   LittleFS.end();
 
