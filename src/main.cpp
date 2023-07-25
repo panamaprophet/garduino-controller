@@ -16,11 +16,11 @@
 
 bool isOn;
 
-unsigned long duration;
+unsigned long duration = 12 * 60 * 60 * 1000;
 unsigned int thresholdTemperature = 30;
-unsigned int fanSpeed;
+unsigned int fanSpeed = 128;
 
-long switchIn;
+long switchIn = 12 * 60 * 60 * 1000;
 
 float humidity;
 float temperature;
@@ -92,7 +92,7 @@ void handleStatusMessage() {
 
   sprintf(
     payload, 
-    "{\"temperature\":%.2f,\"humidity\":%.2f,\"isOn\":%s,\"fanSpeed\":%d,\"stabilityFactor\":%.2f}", 
+    "{\"temperature\":%.2f,\"humidity\":%.2f,\"isOn\":%s,\"fanSpeed\":%d,\"stabilityFactor\":%.2f}",
     temperature, 
     humidity, 
     isOn ? "true" : "false", 
