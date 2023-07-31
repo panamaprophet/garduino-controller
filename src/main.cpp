@@ -9,10 +9,8 @@
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 
-// @todo: send event on switch
 // @todo: send event on fan speed change
 // @todo: send event on threshold temperature hit
-// @todo: send event on run
 
 bool isOn;
 
@@ -67,6 +65,36 @@ time_t syncTime() {
     return now;
 }
 
+void sendEvent(const char* payload) {
+  Serial.printf("sending update event, payload = %s\n", payload);
+
+  mqtt.publish(("controllers/" + controllerId + "/events/pub").c_str(), payload);
+}
+
+void sendRunEvent() {
+  char payload[40];
+
+  sprintf(payload, "{\"isOn\": %s, \"event\": \"run\"}", isOn ? "true" : "false");
+
+  sendEvent(payload);
+}
+
+void sendSwitchEvent() {
+  char payload[40];
+
+  sprintf(payload, "{\"isOn\": %s, \"event\": \"switch\"}", isOn ? "true" : "false");
+
+  sendEvent(payload);
+}
+
+void sendUpdateEvent() {
+  char payload[100];
+
+  sprintf(payload, "{\"temperature\":%.2f,\"humidity\":%.2f,\"event\":\"update\"}", temperature, humidity);
+
+  sendEvent(payload); 
+}
+
 void handleLightSwitch() {
   if (switchIn <= 0) {
     isOn = !isOn;
@@ -76,6 +104,8 @@ void handleLightSwitch() {
     Serial.printf("switching. light is %s. will be switched in %lu hours (%lu ms).\n", isOn ? "on" : "off", switchIn / 1000 / 60 / 60, switchIn);
 
     digitalWrite(LIGHT_PIN, isOn ? LOW : HIGH);
+
+    sendSwitchEvent();
 
     return;
   }
@@ -123,12 +153,8 @@ void handleConfigurationMessage(const byte* message) {
     sensor.read();
 
     Serial.printf("light is %s. will be switched in %lu hours (%lu ms). fan speed is %u. threshold temperature is %u\n", isOn ? "on" : "off", switchIn / 1000 / 60 / 60, switchIn, fanSpeed, thresholdTemperature);
-}
 
-void sendEvent(const char* payload) {
-  Serial.printf("sending update event, payload = %s\n", payload);
-
-  mqtt.publish(("controllers/" + controllerId + "/events/pub").c_str(), payload);
+    sendRunEvent();
 }
 
 void onSensorData(float h, float t) {
@@ -306,13 +332,7 @@ void setup() {
   sensor.setReadInterval(SENSOR_READ_INTERVAL);
   sensor.setHandlers(onSensorData, onSensorError);
 
-  updateTicker.attach_ms(UPDATE_INTERVAL, [&]() {
-    char payload[100];
-
-    sprintf(payload, "{\"temperature\":%.2f,\"humidity\":%.2f}", temperature, humidity);
-
-    sendEvent(payload); 
-  });
+  updateTicker.attach_ms(UPDATE_INTERVAL, sendUpdateEvent);
 
   ticker.attach_ms(CYCLE_TICKER_INTERVAL, handleLightSwitch);
 
