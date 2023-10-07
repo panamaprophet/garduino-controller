@@ -1,27 +1,47 @@
 #!/bin/bash
 
-OUTPUT_DIRECTORY='data'
-FILE_NAME='config.json'
+write_configuration() {
+    printf "writing configuration to $5\n\n" 
 
-echo "creating directory..."
-echo ""
+    echo "{
+        \"ssid\": \"$1\",
+        \"password\": \"$2\",
+        \"controllerId\": \"$3\",
+        \"host\": \"$4\"
+    }" > "$5"
+}
 
-mkdir -p $OUTPUT_DIRECTORY
+check_directory() {
+    local directory=$1
 
-read -p "ssid = " WIFI_SSID
-read -p "password = " WIFI_PASS
-read -p "controller id (press enter to generate automatically) = " CONTROLLER_ID
-read -p "host = " HOST
+    if [ ! -d $directory ]; then
+        printf "directory ${directory} doesn't exists. creating...\n\n"
 
-if [ ! "$CONTROLLER_ID" ]; then
-    CONTROLLER_ID=$(uuidgen)
-fi
+        mkdir -p $directory
+    fi
+}
 
-echo "{
-    \"ssid\": \"${WIFI_SSID}\",
-    \"password\": \"${WIFI_PASS}\",
-    \"controllerId\": \"${CONTROLLER_ID}\",
-    \"host\": \"${HOST}\"
-}" > "${OUTPUT_DIRECTORY}/${FILE_NAME}"
+main() {
+    local output_directory="data"
+    local file_name="config.json"
+    local path="$output_directory/$file_name"
 
-echo "done."
+    check_directory $output_directory
+
+    read -p "ssid = " wifi_ssid
+    read -p "password = " wifi_pass
+    read -p "controller id (press enter to generate automatically) = " controller_id
+    read -p "host = " host
+
+    echo ""
+
+    if [ ! $controller_id ]; then
+        controller_id=$(uuidgen)
+    fi
+
+    write_configuration $wifi_ssid $wifi_pass $controller_id $host $path
+
+    echo "done."
+}
+
+main

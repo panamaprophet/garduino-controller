@@ -1,41 +1,81 @@
 #!/bin/bash
 
-if ! command -v jq &> /dev/null
-then
-    echo "jq was not found. please, install it before continue"
-    exit 1
-fi
+COLOR_SUCCESS='\033[0;32m'
+COLOR_ERROR='\033[0;31m'
+COLOR_NC='\033[0m'
 
-read -p "thing name = " THING_NAME
+check_jq() {
+    if ! command -v jq &> /dev/null; then
+        printf "${COLOR_ERROR}jq was not found. please, install it before continue${COLOR_NC}\n" >&2
+        exit 1
+    fi
+}
 
-echo ""
+get_certificates() {
+    aws iot list-certificates | jq -r '.certificates'
+}
 
-CERTIFICATES=$(aws iot list-certificates | jq -r '.certificates')
-CERTIFICATE_ARNS=($(echo $CERTIFICATES | jq -r '.[] | .certificateArn'))
-CERTIFICATE_DATES=($(echo $CERTIFICATES | jq -r '.[] | .creationDate'))
-
-echo "available certificates:"
-
-for i in ${!CERTIFICATE_ARNS[@]}
-do
+list_certificates() {
+    echo "listing certificates..."
     echo ""
-    echo "$(expr $i + 1)) arn: " ${CERTIFICATE_ARNS[$i]}
-    echo "   date: " ${CERTIFICATE_DATES[$i]}
-done
 
-echo ""
+    local arns=($(echo $1 | jq -r '.[] | .certificateArn'))
+    local dates=($(echo $1 | jq -r '.[] | .creationDate'))
 
-read -p "select certificate = " SELECTED_CERTIFICATE_NUMBER
+    echo "available certificates:"
 
-THING=$(aws iot create-thing --thing-name $THING_NAME)
+    for i in ${!arns[@]}
+    do
+        printf "\n$(expr $i + 1)) arn:  ${COLOR_SUCCESS}${arns[$i]}${COLOR_NC}\n   date: ${dates[$i]}\n"
+    done
 
-echo ""
+    echo ""
+}
 
-aws iot attach-thing-principal --thing-name $THING_NAME --principal ${CERTIFICATE_ARNS[$SELECTED_CERTIFICATE_NUMBER - 1]}
+select_certificate() {
+    local certificates=$(get_certificates)
 
-echo "created thing arn = `(echo $THING | jq -r '.thingArn')`" 
-echo "created thing id  = `(echo $THING | jq -r '.thingId')`"
+    list_certificates "$certificates" >&2 # using stderr to separate return value from listing
 
-echo ""
+    read -p "select certificate = " selected_certificate_number
 
-echo "done."
+    echo ${$certificates[$selected_certificate_number - 1]}
+}
+
+create_thing() {
+    local thing_name=$1
+
+    result=$(aws iot create-thing --thing-name $thing_name)
+
+    local thing_arn=$(echo $result | jq -r '.thingArn')
+    local thing_id=$(echo $result | jq -r '.thingId')
+
+    printf "created thing arn = ${COLOR_SUCCESS}$thing_arn${COLOR_NC}\n"
+    printf "created thing id  = ${COLOR_SUCCESS}$thing_id${COLOR_NC}\n"
+}
+
+attach_thing_policy() {
+    local thing_name=$1
+    local policy=$2
+
+    echo "attaching the policy..."
+
+    aws iot attach-thing-principal --thing-name $thing_name --principal $policy
+}
+
+main() {
+    check_jq
+
+    read -p "thing name = " thing_name
+
+    echo ""
+
+    local selected_policy=$(select_certificate)
+
+    create_thing $thing_name
+    attach_thing_policy $thing_name $selected_policy
+
+    echo "done."
+}
+
+main

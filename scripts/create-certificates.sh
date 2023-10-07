@@ -1,40 +1,61 @@
 #!/bin/bash
 
-OUTPUT_DIRECTORY='data'
-POLICY_NAME='garduino-controller-Policy'
+COLOR_ERROR='\033[0;31m'
+COLOR_NC='\033[0m'
 
-if ! command -v jq &> /dev/null
-then
-    echo "jq was not found. please, install it before continue"
-    exit 1
-fi
+check_jq() {
+    if ! command -v jq &> /dev/null; then
+        printf "${COLOR_ERROR}jq was not found. please, install it before continue${COLOR_NC}\n" >&2
+        exit 1
+    fi
+}
 
-echo "creating directory..."
+check_directory() {
+    local directory=$1
 
-mkdir -p $OUTPUT_DIRECTORY
+    if [ ! -d $directory ]; then
+        printf "directory ${directory} doesn't exists. creating...\n\n"
 
-echo "creating certificate..."
+        mkdir -p $directory
+    fi
+}
 
-CREATED_CERTIFICATES=$(
-    aws iot create-keys-and-certificate \
+create_certificates() {
+    printf "creating certificates...\n\n" >&2
+
+    local directory=$1
+
+    result=$(
+        aws iot create-keys-and-certificate \
         --set-as-active \
-        --certificate-pem-outfile $OUTPUT_DIRECTORY/controller.cert.pem \
-        --public-key-outfile $OUTPUT_DIRECTORY/controller.key \
-        --private-key-outfile $OUTPUT_DIRECTORY/controller.private.key
-)
+        --certificate-pem-outfile $directory/controller.cert.pem \
+        --public-key-outfile $directory/controller.key \
+        --private-key-outfile $directory/controller.private.key
+    )
 
-CERTIFICATE_ARN=$(echo $CREATED_CERTIFICATES | jq -r '.certificateArn')
+    local created_certificate_arn=$(echo $result | jq -r '.certificateArn')
 
-echo "created certificate arn: ${CERTIFICATE_ARN}"
+    echo $created_certificate_arn
+}
 
-POLICY_EXISTING=$(aws iot get-policy --policy-name $POLICY_NAME)
+is_policy_exists() {
+    local policy_name=$1
+    local policy=$(aws iot get-policy --policy-name $policy_name)
 
-if ! jq -e . >/dev/null 2>&1 <<< $POLICY_EXISTING
-then
-    echo "policy doesn't exist. creating..."
+    if [ -z "$policy" ]; then
+        return 1
+    else
+        return 0
+    fi
+}
+
+create_policy() {
+    printf "creating policy...\n\n"
+
+    local policy_name=$1
 
     aws iot create-policy \
-        --policy-name $POLICY_NAME \
+        --policy-name $policy_name \
         --policy-document \
             '{
                 "Version": "2012-10-17",
@@ -56,14 +77,43 @@ then
                     "Resource": "*"
                 }]
             }'
-fi
+}
 
-echo "attaching policy..."
+attach_policy() {
+    printf "attaching policy...\n\n"
 
-ATTACHED_POLICY=$(aws iot attach-policy --policy-name $POLICY_NAME --target $CERTIFICATE_ARN);
+    local policy_name=$1
+    local certificate_arn=$2
 
-echo "downloading root certificate..."
+    aws iot attach-policy --policy-name $policy_name --target $certificate_arn
+}
 
-curl -s "https://www.amazontrust.com/repository/AmazonRootCA1.pem" > "${OUTPUT_DIRECTORY}/root.crt"
+download_root_certificate() {
+    printf "downloading root certificate...\n\n"
 
-echo "done."
+    local url="https://www.amazontrust.com/repository/AmazonRootCA1.pem"
+    local directory=$1
+
+    curl -s $url > "$directory/root.crt"
+}
+
+main() {
+    local output_directory="data"
+    local policy_name="garduino-controller-Policy"
+
+    check_jq
+    check_directory
+
+    if [ ! is_policy_exists $policy_name ]; then
+        create_policy $policy_name
+    fi
+
+    local created_certificate_arn=$(create_certificates $output_directory)
+
+    attach_policy $policy_name $created_certificate_arn
+    download_root_certificate $output_directory
+
+    echo "done."
+}
+
+main
