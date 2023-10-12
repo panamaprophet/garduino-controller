@@ -4,6 +4,7 @@
 #include <string>
 #include <time.h>
 #include <sensor/sensor.h>
+#include <fanSpeedController/fanSpeedController.h>
 #include <PubSubClient.h>
 #include <ESP8266WiFi.h>
 #include <WiFiClientSecure.h>
@@ -16,7 +17,6 @@ bool isOn;
 
 unsigned long duration = 12 * 60 * 60 * 1000;
 unsigned int thresholdTemperature = 30;
-unsigned int fanSpeed = 128;
 
 long switchIn = 12 * 60 * 60 * 1000;
 
@@ -29,19 +29,20 @@ std::string controllerId = "";
 Sensor sensor;
 Ticker ticker;
 Ticker updateTicker;
+Ticker cooldownTicker;
 BearSSL::WiFiClientSecure wifi;
 PubSubClient mqtt(wifi);
+
+FanSpeedController fanSpeedController;
 
 const int LIGHT_PIN = 14;
 const int FAN_PIN = 12;
 const int SENSOR_PIN = 2;
 
-const int FAN_SPEED_MAX = 255;
-const int FAN_SPEED_STEP = 50;
-
 const unsigned long UPDATE_INTERVAL = 10 * 60 * 1000;
 const unsigned long SENSOR_READ_INTERVAL = 30 * 1000;
 const unsigned long CYCLE_TICKER_INTERVAL = 1 * 5000;
+const unsigned long COOL_DOWN_INTERVAL = 5 * 60 * 1000;
 
 time_t syncTime() {
     Serial.print("time sync...");
@@ -107,6 +108,12 @@ void handleLightSwitch() {
 
     sendSwitchEvent();
 
+    if (!isOn) {
+      cooldownTicker.once_ms(COOL_DOWN_INTERVAL, [](){ 
+        fanSpeedController.reset();
+      });
+    }
+
     return;
   }
 
@@ -126,7 +133,7 @@ void handleStatusMessage() {
     temperature, 
     humidity, 
     isOn ? "true" : "false", 
-    fanSpeed,
+    fanSpeedController.currentSpeed,
     stabilityFactor
   );
 
@@ -141,18 +148,27 @@ void handleConfigurationMessage(const byte* message) {
 
     isOn = json["isOn"].as<boolean>();
     duration = json["duration"].as<unsigned long>();
-    fanSpeed = json["fanSpeed"].as<unsigned int>();
     thresholdTemperature = json["thresholdTemperature"].as<unsigned int>();
     switchIn = json["switchIn"].as<unsigned long>();
 
+    unsigned int fanSpeed = json["fanSpeed"].as<unsigned int>();
+
     json.clear();
 
-    analogWrite(FAN_PIN, fanSpeed);
+    fanSpeedController.setup(FAN_PIN, fanSpeed);
+
     digitalWrite(LIGHT_PIN, isOn ? LOW : HIGH);
 
     sensor.read();
 
-    Serial.printf("light is %s. will be switched in %lu hours (%lu ms). fan speed is %u. threshold temperature is %u\n", isOn ? "on" : "off", switchIn / 1000 / 60 / 60, switchIn, fanSpeed, thresholdTemperature);
+    Serial.printf(
+      "light is %s. will be switched in %lu hours (%lu ms). fan speed is %u. threshold temperature is %u\n", 
+      isOn ? "on" : "off", 
+      switchIn / 1000 / 60 / 60, 
+      switchIn, 
+      fanSpeedController.currentSpeed, 
+      thresholdTemperature
+    );
 
     sendRunEvent();
 }
@@ -163,21 +179,10 @@ void onSensorData(float h, float t) {
 
   humidity = h;
   temperature = t;
-}
 
-void handleFanSpeed() {
-  bool hitFactorThreshold = false; // stabilityFactor >= 2;
-  bool hitTemperatureThreshold = temperature >= thresholdTemperature;
-
-  if (hitFactorThreshold || hitTemperatureThreshold) {
-    fanSpeed = hitTemperatureThreshold ? FAN_SPEED_MAX : fanSpeed + FAN_SPEED_STEP;
-
-    // Serial.printf("%s is raising, setting fan speed to %d\n", hitTemperatureThreshold ? "temperature" : "stability factor", fanSpeed);
-
-    analogWrite(FAN_PIN, fanSpeed);
+  if (temperature >= thresholdTemperature) {
+    fanSpeedController.stepUp();
   }
-
-  // Serial.printf("temperature = %.0f, humidity = %.0f, stability factor = %d\n", temperature, humidity, stabilityFactor);
 }
 
 void onSensorError(uint8_t error) {
@@ -356,6 +361,4 @@ void loop() {
   }
 
   mqtt.loop();
-
-  handleFanSpeed();
 }
