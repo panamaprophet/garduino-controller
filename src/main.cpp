@@ -10,9 +10,6 @@
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 
-// @todo: send event on fan speed change
-// @todo: send event on threshold temperature hit
-
 bool isOn;
 
 unsigned long duration = 12 * 60 * 60 * 1000;
@@ -91,33 +88,35 @@ void sendSwitchEvent() {
 void sendUpdateEvent() {
   char payload[100];
 
-  sprintf(payload, "{\"temperature\":%.2f,\"humidity\":%.2f,\"event\":\"update\"}", temperature, humidity);
+  sprintf(payload, "{\"temperature\":%.2f,\"humidity\":%.2f,\"fanSpeed\": %.2d,\"event\":\"update\"}", temperature, humidity, fanSpeedController.currentSpeed);
 
   sendEvent(payload); 
 }
 
 void handleLightSwitch() {
-  if (switchIn <= 0) {
-    isOn = !isOn;
+  switchIn -= CYCLE_TICKER_INTERVAL;
 
-    switchIn = (isOn ? (86400000 - duration) : duration);
-
-    Serial.printf("switching. light is %s. will be switched in %lu hours (%lu ms).\n", isOn ? "on" : "off", switchIn / 1000 / 60 / 60, switchIn);
-
-    digitalWrite(LIGHT_PIN, isOn ? LOW : HIGH);
-
-    sendSwitchEvent();
-
-    if (!isOn) {
-      cooldownTicker.once_ms(COOL_DOWN_INTERVAL, [](){ 
-        fanSpeedController.reset();
-      });
-    }
-
+  if (switchIn > 0) {
     return;
   }
 
-  switchIn -= CYCLE_TICKER_INTERVAL;
+  isOn = !isOn;
+
+  switchIn = isOn ? duration : 86400000 - duration;
+
+  Serial.printf("switching. light is %s. will be switched in %lu hours (%lu ms).\n", isOn ? "on" : "off", switchIn / 1000 / 60 / 60, switchIn);
+
+  digitalWrite(LIGHT_PIN, isOn ? LOW : HIGH);
+
+  sendSwitchEvent();
+
+  if (!isOn) {
+    Serial.printf("timer will be reset in %lu minutes", COOL_DOWN_INTERVAL / 1000 / 60);
+
+    cooldownTicker.once_ms(COOL_DOWN_INTERVAL, [](){ 
+      fanSpeedController.reset();
+    });
+  }
 }
 
 void handleRebootMessage() {
@@ -174,15 +173,25 @@ void handleConfigurationMessage(const byte* message) {
 }
 
 void onSensorData(float h, float t) {
-  if (t < temperature) stabilityFactor--;
-  if (t > temperature) stabilityFactor++;
+  if (t < temperature) {
+    stabilityFactor--;
+  }
+
+  if (t > temperature) {
+    stabilityFactor++;
+  }
+
+  if (t == temperature) {
+    stabilityFactor > 0 ? stabilityFactor-- : stabilityFactor++;
+  }
+
+  if (t >= thresholdTemperature && t > temperature) {
+    fanSpeedController.stepUp();
+    sendUpdateEvent();
+  }
 
   humidity = h;
   temperature = t;
-
-  if (temperature >= thresholdTemperature) {
-    fanSpeedController.stepUp();
-  }
 }
 
 void onSensorError(uint8_t error) {
