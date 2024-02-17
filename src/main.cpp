@@ -172,26 +172,30 @@ void handleConfigurationMessage(const byte* message) {
     sendRunEvent();
 }
 
-void onSensorData(float h, float t) {
-  if (t < temperature) {
+void onSensorData(float newHumidity, float newTemperature) {
+  if (newTemperature < temperature) {
     stabilityFactor--;
   }
 
-  if (t > temperature) {
+  if (newTemperature > temperature) {
     stabilityFactor++;
   }
 
-  if (t == temperature) {
+  if (newTemperature == temperature) {
     stabilityFactor > 0 ? stabilityFactor-- : stabilityFactor++;
   }
 
-  if (t >= thresholdTemperature && t > temperature) {
+  if (
+    newTemperature >= thresholdTemperature && 
+    newTemperature > temperature && 
+    fanSpeedController.currentSpeed < fanSpeedController.max
+  ) {
     fanSpeedController.stepUp();
     sendUpdateEvent();
   }
 
-  humidity = h;
-  temperature = t;
+  humidity = newHumidity;
+  temperature = newTemperature;
 }
 
 void onSensorError(uint8_t error) {
