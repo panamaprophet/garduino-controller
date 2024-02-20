@@ -27,6 +27,8 @@ Sensor sensor;
 Ticker ticker;
 Ticker updateTicker;
 Ticker cooldownTicker;
+Ticker rebootTicker;
+
 BearSSL::WiFiClientSecure wifi;
 PubSubClient mqtt(wifi);
 
@@ -64,7 +66,7 @@ time_t syncTime() {
 }
 
 void sendEvent(const char* payload) {
-  Serial.printf("sending update event, payload = %s\n", payload);
+  Serial.printf("sending event, payload = %s\n", payload);
 
   mqtt.publish(("controllers/" + controllerId + "/events/pub").c_str(), payload);
 }
@@ -120,8 +122,17 @@ void handleLightSwitch() {
 }
 
 void handleRebootMessage() {
-  ESP.restart();
-}
+  char payload[50];
+  const uint32_t interval = 5 * 1000;
+
+  sprintf(payload, "{\"event\":\"reboot\", \"scheduledIn\":%lu}", interval);
+
+  sendEvent(payload);
+
+  rebootTicker.once_ms(interval, [](){
+    ESP.restart();
+  });
+};
 
 void handleStatusMessage() {
   char payload[100];
