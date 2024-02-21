@@ -2,11 +2,14 @@
 #include <Ticker.h>
 #include <DHT.h>
 #include <stdint.h>
+#include <algorithm>
 
 namespace modules {
     class Fan {
         private:
             Ticker ticker;
+
+            void setSpeed(unsigned int speed);
 
         public:
             unsigned int pin;

@@ -8,8 +8,6 @@ const int LIGHT_PIN = 14;
 const int FAN_PIN = 12;
 const int SENSOR_PIN = 2;
 
-
-core::Logger logger;
 core::Config config;
 core::Network wifi;
 core::Mqtt mqtt(wifi.client);
@@ -21,36 +19,30 @@ modules::Sensor sensor(SENSOR_PIN);
 
 
 void handleRebootMessage(byte* _payload, unsigned int _length) {
-//   char payload[50];
-//   const uint32_t interval = 5 * 1000;
-
-//   sprintf(payload, "{\"event\":\"reboot\", \"scheduledIn\":%lu}", interval);
-
-//   sendEvent(payload);
-
-//   rebootTicker.once_ms(interval, [](){
+    Serial.printf("[handler:reboot] reboot was requested\n");
     ESP.restart();
-//   });
 };
 
 void handleStatusMessage(byte* _payload, unsigned int _length) {
-  char payload[100];
+    Serial.printf("[handler:status] status was requested\n");
 
-  sprintf(
-    payload, 
-    "{\"temperature\":%.2f,\"humidity\":%.2f,\"isOn\":%s,\"fanSpeed\":%d,\"stabilityFactor\":%.2d}",
-    sensor.temperature, 
-    sensor.humidity, 
-    light.isOn ? "true" : "false", 
-    fan.currentSpeed,
-    sensor.stabilityFactor
-  );
+    char payload[100];
 
-  mqtt.publish("controllers/" + config.controllerId + "/status/pub", payload);
+    sprintf(
+        payload, 
+        "{\"temperature\":%.2f,\"humidity\":%.2f,\"isOn\":%s,\"fanSpeed\":%d,\"stabilityFactor\":%.2d}",
+        sensor.temperature, 
+        sensor.humidity, 
+        light.isOn ? "true" : "false", 
+        fan.currentSpeed,
+        sensor.stabilityFactor
+    );
+
+    mqtt.publish("controllers/" + config.controllerId + "/status/pub", payload);
 };
 
 void handleConfigurationMessage(byte* payload, unsigned int length) {
-    logger.log("mqtt: configuration received\n");
+    Serial.printf("[handler:config] configuration received\n");
 
     StaticJsonDocument<200> json;
     deserializeJson(json, (char *)payload);
@@ -69,20 +61,15 @@ void handleConfigurationMessage(byte* payload, unsigned int length) {
     light.run();
     fan.run();
 
-    logger.log(
-        "light is %s. will be switched in %lu hours (%lu ms). fan speed is %u. threshold temperature is %u\n", 
-        light.isOn ? "on" : "off", 
-        light.switchIn / 1000 / 60 / 60, 
-        light.switchIn, 
-        fan.currentSpeed, 
-        sensor.thresholdTemperature
-    );
+    Serial.printf("[handler:config] configuration applied\n");
 
     // sendRunEvent();
 };
 
 
 void setup () {
+    Serial.begin(115200);
+
     wifi.connect(config.ssid, config.password);
 
     timer.sync();

@@ -7,19 +7,26 @@ modules::Fan::Fan(int _pin) {
     analogWrite(pin, minSpeed);
 };
 
-void modules::Fan::run () {
-    currentSpeed = defaultSpeed;
+void modules::Fan::setSpeed(unsigned int speed) {
+    currentSpeed = std::min(std::max(minSpeed, speed), maxSpeed);
+
+    Serial.printf("[module:fan] set speed to: %d (requested %d)\n", currentSpeed, speed);
+
     analogWrite(pin, currentSpeed);
+}
+
+void modules::Fan::run() {
+    Serial.printf("[module:fan] run\n");
+
+    setSpeed(defaultSpeed);
 };
 
 void modules::Fan::stepUp() {
-    currentSpeed += step;
-    analogWrite(pin, currentSpeed);
+    setSpeed(currentSpeed + step);
 };
 
-void modules::Fan::reset () {
-    currentSpeed = defaultSpeed;
-    analogWrite(pin, currentSpeed);
+void modules::Fan::reset() {
+    setSpeed(defaultSpeed);
 };
 
 
@@ -30,6 +37,8 @@ modules::Light::Light(int _pin) {
 };
 
 void modules::Light::run () {
+    Serial.printf("[module:light] run. light is %s. will be switched in %lu hours (%lu ms).\n", isOn ? "on" : "off", switchIn / 1000 / 60 / 60, switchIn);
+
     ticker.attach_ms(checkInterval, [&]() {
         switchIn -= checkInterval;
 
@@ -37,22 +46,13 @@ void modules::Light::run () {
             isOn = !isOn;
             switchIn = isOn ? duration : 86400000 - duration;   
 
-            // Serial.printf("switching. light is %s. will be switched in %lu hours (%lu ms).\n", isOn ? "on" : "off", switchIn / 1000 / 60 / 60, switchIn);
+            Serial.printf("[module:light] switch. light is %s. will be switched in %lu hours (%lu ms).\n", isOn ? "on" : "off", switchIn / 1000 / 60 / 60, switchIn);
 
             digitalWrite(pin, isOn ? LOW : HIGH);
 
+            // @todo: add api to act on switch
             // onSwitch(isOn, switchIn)
         }
-
-        // sendSwitchEvent();
-
-        // if (!isOn) {
-        //     Serial.printf("timer will be reset in %lu minutes", COOL_DOWN_INTERVAL / 1000 / 60);
-
-        //     cooldownTicker.once_ms(COOL_DOWN_INTERVAL, [](){ 
-        //     fanSpeedController.reset();
-        //     });
-        // }
     });
 
     digitalWrite(pin, isOn ? LOW : HIGH);
@@ -81,7 +81,9 @@ modules::Sensor::Sensor(int _pin) {
         }
 
         if (newTemperature >= thresholdTemperature && newTemperature > temperature) {
+            // @todo: add api to act on threshold
             // trigger threshold event
+            Serial.printf("[module:sensor] threshold reached\n");
         }
 
         humidity = newHumidity;
@@ -95,12 +97,14 @@ modules::Sensor::Sensor(int _pin) {
             sensor.read();
         } else {
             retryCounter = 0;
-            //   Serial.printf("error reading sensor data = %s\n", sensor.getLastError());
+            Serial.printf("[module:sensor] error reading sensor data: %s\n", sensor.getError());
         }
     });
 };
 
 void modules::Sensor::run() {
+    Serial.printf("[module:sensor] run. polling interval set to %d seconds\n", interval / 1000);
+
     ticker.attach_ms(interval, [&]() {
         sensor.read();
     });

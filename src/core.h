@@ -10,15 +10,6 @@
 #include <stdarg.h>
 
 namespace core {
-    class Logger {
-        private:
-            unsigned long baudRate = 115200;
-
-        public:
-            Logger();
-            void log(const char * format, ...);
-    };
-
     class Config {
         public:
             std::string ssid;
