@@ -1,13 +1,24 @@
 #include <ArduinoJson.h>
 #include <string>
-#include <vector>
+#include <map>
 #include <time.h>
 #include <LittleFS.h>
 #include <ESP8266WiFi.h>
 #include <WiFiClientSecure.h>
 #include <PubSubClient.h>
+#include <stdio.h>
+#include <stdarg.h>
 
 namespace core {
+    class Logger {
+        private:
+            unsigned long baudRate = 115200;
+
+        public:
+            Logger();
+            void log(const char * format, ...);
+    };
+
     class Config {
         public:
             std::string ssid;
@@ -31,12 +42,12 @@ namespace core {
             void connect(std::string ssid, std::string password);
     };
 
+    typedef void (*mqttCallback)(byte* payload, unsigned int length);
+
     class Mqtt {
         private:
             PubSubClient client;
-
-            std::vector<std::string> topics;
-
+            std::map<std::string, mqttCallback> callbacks; 
             std::string _host;
             std::string _id ;
 
@@ -45,7 +56,7 @@ namespace core {
         public:
             Mqtt(Client& networkClient);
 
-            void subscribe(std::string topic);
+            void subscribe(std::string topic, mqttCallback callback);
             void connect(std::string host, std::string id, uint16 port = 8883);
             void publish(std::string topic, std::string payload = "{}");
             void loop();

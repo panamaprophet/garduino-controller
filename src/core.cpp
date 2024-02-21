@@ -2,6 +2,19 @@
 #include <core.h>
 
 
+core::Logger::Logger() {
+    Serial.begin(baudRate);
+};
+
+void core::Logger::log(const char * format, ...) {
+    va_list args;
+
+    va_start(args, format);
+    vprintf(format, args);
+    va_end(args);
+}
+
+
 core::Config::Config() {
     LittleFS.begin();
 
@@ -90,8 +103,8 @@ void core::Network::connect(std::string ssid, std::string password) {
 };
 
 void core::Mqtt::resubscribe() {
-    for (auto topic: topics) {
-        client.subscribe(topic.c_str());
+    for (auto const& item: callbacks) {
+        client.subscribe(item.first.c_str());
     }
 }
 
@@ -100,8 +113,9 @@ core::Mqtt::Mqtt(Client& networkClient) {
         client.setClient(networkClient);
     };
 
-void core::Mqtt::subscribe(std::string topic) {
-    topics.push_back(topic);
+void core::Mqtt::subscribe(std::string topic, mqttCallback callback) {
+    callbacks.insert_or_assign(topic, callback);
+    client.subscribe(topic.c_str());
 }
 
 void core::Mqtt::connect(std::string host, std::string id, uint16 port) {
@@ -112,8 +126,18 @@ void core::Mqtt::connect(std::string host, std::string id, uint16 port) {
 
     client.setServer(host.c_str(), port);
 
-    client.setCallback([](char* topic, byte* payload, unsigned int length) {
-        // trah lah lah
+    client.setCallback([&](char* _topic, byte* payload, unsigned int length) {
+        const std::string topic(_topic);
+        auto result = callbacks.find(topic);
+
+        payload[length] = '\0';
+
+        Serial.print("received topic: ");
+        Serial.println(_topic);
+
+        if (result != callbacks.end()) {
+            result -> second(payload, length);
+        }
     });
 
     client.connect(id.c_str());
@@ -132,13 +156,12 @@ void core::Mqtt::connect(std::string host, std::string id, uint16 port) {
     }
 
     resubscribe();
-
-    // mqtt.subscribe(("controllers/" + controllerId + "/config/sub").c_str());
-    // mqtt.subscribe(("controllers/" + controllerId + "/reboot/sub").c_str());
-    // mqtt.subscribe(("controllers/" + controllerId + "/status/sub").c_str());
 };
 
 void core::Mqtt::publish(std::string topic, std::string payload) {
+    Serial.print("publish"); 
+    Serial.println(topic.c_str());
+
     client.publish(topic.c_str(), payload.c_str());
 };
 

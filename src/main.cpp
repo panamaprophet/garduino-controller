@@ -1,46 +1,15 @@
-/*
-
-main:
-    - core/config
-    - core/network      (uses config.ssid, config.password)         connect(),                                                                     getIp(), getLastError()
-    - core/mqtt         (uses config.host, config.controllerId)     connect(), subscribe(), loop()
-    - core/time         (uses wifi)                                 sync(),                                                                        now()
-
-    - modules/fan       (uses state.temperature)                    currentSpeed, maxSpeed, minSpeed        stepUp(), reset()
-    - modules/light                                                 isOn, switchIn, duration                                                       onSwitch()
-    - modules/sensor                                                humidity, temperature, stabilityFactor                                         onData(), onError()
-
-    handleConfigurationMessage:
-
-        - setup the modules:
-
-            modules/fan         =   currentSpeed
-            modules/light       =   isOn, switchIn, duration
-            modules/sensor      =   set up the check interval and start
-
-    handleRebootMessage:
-
-        - reboots the controller
-
-    handleStatusMessage:
-
-        - send the status collected from modules
-
-            modules/fan             currentSpeed
-            modules/light           isOn
-            modules/sensor          [temperature, humidity]
-
-*/
-
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <core.h>
 #include <modules.h>
 
+
 const int LIGHT_PIN = 14;
 const int FAN_PIN = 12;
-const int SENSOR_PIN = 6;
+const int SENSOR_PIN = 2;
 
+
+core::Logger logger;
 core::Config config;
 core::Network wifi;
 core::Mqtt mqtt(wifi.client);
@@ -51,7 +20,7 @@ modules::Light light(LIGHT_PIN);
 modules::Sensor sensor(SENSOR_PIN);
 
 
-void handleRebootMessage() {
+void handleRebootMessage(byte* _payload, unsigned int _length) {
 //   char payload[50];
 //   const uint32_t interval = 5 * 1000;
 
@@ -64,7 +33,7 @@ void handleRebootMessage() {
 //   });
 };
 
-void handleStatusMessage() {
+void handleStatusMessage(byte* _payload, unsigned int _length) {
   char payload[100];
 
   sprintf(
@@ -80,11 +49,9 @@ void handleStatusMessage() {
   mqtt.publish("controllers/" + config.controllerId + "/status/pub", payload);
 };
 
-void handleConfigurationMessage(char* topic, byte* payload, unsigned int length) {
-    Serial.println("mqtt: configuration received");
+void handleConfigurationMessage(byte* payload, unsigned int length) {
+    logger.log("mqtt: configuration received\n");
 
-    payload[length] = '\0';
-    
     StaticJsonDocument<200> json;
     deserializeJson(json, (char *)payload);
 
@@ -102,7 +69,7 @@ void handleConfigurationMessage(char* topic, byte* payload, unsigned int length)
     light.run();
     fan.run();
 
-    Serial.printf(
+    logger.log(
         "light is %s. will be switched in %lu hours (%lu ms). fan speed is %u. threshold temperature is %u\n", 
         light.isOn ? "on" : "off", 
         light.switchIn / 1000 / 60 / 60, 
@@ -114,6 +81,7 @@ void handleConfigurationMessage(char* topic, byte* payload, unsigned int length)
     // sendRunEvent();
 };
 
+
 void setup () {
     wifi.connect(config.ssid, config.password);
 
@@ -121,9 +89,9 @@ void setup () {
 
     mqtt.connect(config.host, config.controllerId);
 
-    mqtt.subscribe("controllers/" + config.controllerId + "/config/sub");
-    mqtt.subscribe("controllers/" + config.controllerId + "/reboot/sub");
-    mqtt.subscribe("controllers/" + config.controllerId + "/status/sub");
+    mqtt.subscribe("controllers/" + config.controllerId + "/config/sub", handleConfigurationMessage);
+    mqtt.subscribe("controllers/" + config.controllerId + "/reboot/sub", handleRebootMessage);
+    mqtt.subscribe("controllers/" + config.controllerId + "/status/sub", handleStatusMessage);
 
     mqtt.publish("controllers/" + config.controllerId + "/config/pub");
 };
