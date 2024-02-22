@@ -14,7 +14,7 @@ void modules::Light::run () {
 
         if (switchIn < 0) {
             isOn = !isOn;
-            switchIn = isOn ? duration : 86400000 - duration;   
+            switchIn = isOn ? duration : 86400000 - duration;
 
             Serial.printf("[module:light] switch. light is %s. will be switched in %lu hours (%lu ms).\n", isOn ? "on" : "off", switchIn / 1000 / 60 / 60, switchIn);
 

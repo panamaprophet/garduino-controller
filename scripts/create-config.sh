@@ -1,7 +1,7 @@
 #!/bin/bash
 
 write_configuration() {
-    printf "writing configuration to $5\n\n" 
+    printf "writing configuration to $5\n\n"
 
     echo "{
         \"ssid\": \"$1\",

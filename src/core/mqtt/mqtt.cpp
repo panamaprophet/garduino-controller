@@ -20,8 +20,8 @@ void core::Mqtt::subscribe(std::string topic, mqttCallback callback) {
 void core::Mqtt::connect(std::string host, std::string id, uint16 port) {
     _host = host;
     _id = id;
-    
-    Serial.printf("[mqtt] connecting: ");
+
+    Serial.printf("[mqtt] connecting ... ");
 
     client.setServer(host.c_str(), port);
 
@@ -31,7 +31,7 @@ void core::Mqtt::connect(std::string host, std::string id, uint16 port) {
 
         payload[length] = '\0';
 
-        Serial.printf("[mqtt] message from %s\n", _topic);
+        Serial.printf("[mqtt] message from %s: %s\n", _topic, payload);
 
         if (result != callbacks.end()) {
             result -> second(payload, length);
@@ -51,7 +51,7 @@ void core::Mqtt::connect(std::string host, std::string id, uint16 port) {
 };
 
 void core::Mqtt::publish(std::string topic, std::string payload) {
-    Serial.printf("[mqtt] publishing to %s\n", topic.c_str());
+    Serial.printf("[mqtt] publishing to %s: %s\n", topic.c_str(), payload.c_str());
     client.publish(topic.c_str(), payload.c_str());
 };
 

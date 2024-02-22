@@ -31,11 +31,11 @@ void handleStatusMessage(byte* _payload, unsigned int _length) {
     char payload[100];
 
     sprintf(
-        payload, 
+        payload,
         "{\"temperature\":%.2f,\"humidity\":%.2f,\"isOn\":%s,\"fanSpeed\":%d,\"stabilityFactor\":%.2d}",
-        sensor.temperature, 
-        sensor.humidity, 
-        light.isOn ? "true" : "false", 
+        sensor.temperature,
+        sensor.humidity,
+        light.isOn ? "true" : "false",
         fan.currentSpeed,
         sensor.stabilityFactor
     );
@@ -74,7 +74,7 @@ void handleConfigurationMessage(byte* payload, unsigned int length) {
 
 void onLightSwitch(bool isOn, unsigned long switchIn) {
     mqtt.publish(
-        "controllers/" + config.controllerId + "/events/pub", 
+        "controllers/" + config.controllerId + "/events/pub",
         "{\"event\":\"switch\", \"isOn\":\"" + std::string(light.isOn ? "true" : "false") + "\"}"
     );
 };
@@ -88,9 +88,9 @@ void onUpdate() {
 
     sprintf(
         payload,
-        "{\"temperature\":%.2f,\"humidity\":%.2f,\"fanSpeed\": %.2d,\"event\":\"update\"}", 
-        sensor.temperature, 
-        sensor.humidity, 
+        "{\"temperature\":%.2f,\"humidity\":%.2f,\"fanSpeed\": %.2d,\"event\":\"update\"}",
+        sensor.temperature,
+        sensor.humidity,
         fan.currentSpeed
     );
 

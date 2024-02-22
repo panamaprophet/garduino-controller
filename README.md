@@ -36,7 +36,7 @@
 
 - `modules/sensor`
 
-    Polling the temperature and humidity sensor, 
+    Polling the temperature and humidity sensor,
 
 ### The following mqtt topics supported:
 

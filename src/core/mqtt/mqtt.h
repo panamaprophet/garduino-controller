@@ -9,9 +9,9 @@ namespace core {
     class Mqtt {
         private:
             PubSubClient client;
-            std::map<std::string, mqttCallback> callbacks; 
+            std::map<std::string, mqttCallback> callbacks;
             std::string _host;
-            std::string _id ;
+            std::string _id;
 
             void resubscribe();
 
