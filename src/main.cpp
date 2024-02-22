@@ -1,8 +1,8 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 #include <string>
-#include <core.h>
-#include <modules.h>
+#include <core/core.h>
+#include <modules/modules.h>
 
 
 const int LIGHT_PIN = 14;
@@ -96,6 +96,7 @@ void onUpdate() {
 
     mqtt.publish("controllers/" + config.controllerId + "/events/pub", payload);
 }
+
 
 void setup () {
     Serial.begin(115200);
