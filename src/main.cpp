@@ -53,7 +53,7 @@ void handleConfigurationMessage(byte* payload, unsigned int length) {
     light.duration = json["duration"].as<unsigned long>();
     light.switchIn = json["switchIn"].as<unsigned long>();
 
-    fan.currentSpeed = json["fanSpeed"].as<unsigned int>();
+    fan.defaultSpeed = json["fanSpeed"].as<unsigned int>();
 
     sensor.thresholdTemperature = json["thresholdTemperature"].as<unsigned int>();
 
