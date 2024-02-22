@@ -42,11 +42,7 @@ is_policy_exists() {
     local policy_name=$1
     local policy=$(aws iot get-policy --policy-name $policy_name)
 
-    if [ -z "$policy" ]; then
-        return 1
-    else
-        return 0
-    fi
+    echo $policy
 }
 
 create_policy() {
@@ -104,7 +100,7 @@ main() {
     check_jq
     check_directory
 
-    if [ ! is_policy_exists $policy_name ]; then
+    if [[ ! $(is_policy_exists $policy_name) ]]; then
         create_policy $policy_name
     fi
 

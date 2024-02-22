@@ -39,7 +39,9 @@ select_certificate() {
 
     read -p "select certificate = " selected_certificate_number
 
-    echo ${$certificates[$selected_certificate_number - 1]}
+    local arns=($(echo $certificates | jq -r '.[] | .certificateArn'))
+
+    echo "${arns[selected_certificate_number-1]}"
 }
 
 create_thing() {
