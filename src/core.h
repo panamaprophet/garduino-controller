@@ -8,6 +8,7 @@
 #include <PubSubClient.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <Ticker.h>
 
 namespace core {
     class Config {
@@ -57,4 +58,14 @@ namespace core {
         public:
             time_t sync();
     };
-};
+
+    typedef void (*schedulerCallback)();
+
+    class Scheduler {
+        private:
+            Ticker ticker;
+
+        public:
+            void schedule(unsigned long interval, schedulerCallback callback);
+    };
+}

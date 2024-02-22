@@ -180,3 +180,8 @@ time_t core::Time::sync() {
 
     return now;
 };
+
+
+void core::Scheduler::schedule(unsigned long interval, schedulerCallback callback) {
+    ticker.attach_ms(interval, callback);
+};
