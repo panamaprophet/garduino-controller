@@ -20,6 +20,10 @@
 
     Time sync and utilites.
 
+- `core/scheduler`
+
+    Scheduler for recurrent tasks. Currently a wrapper for ticker's *attach_ms* method.
+
 ### Modules:
 
 - `modules/fan`
