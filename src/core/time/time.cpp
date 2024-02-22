@@ -1,23 +1,25 @@
 #include <core/time/time.h>
 
 time_t core::Time::sync() {
-    Serial.print("[time] sync: ");
+    Serial.printf("[time] sync ");
 
     configTime(0, 0, "pool.ntp.org", "time.nist.gov");
 
     time_t now = time(nullptr);
 
     while (now < 8 * 3600 * 2) {
-        delay(100);
+        delay(10);
         Serial.print(".");
         now = time(nullptr);
     }
+
+    Serial.printf(" success\n");
 
     struct tm timeinfo;
 
     gmtime_r(&now, &timeinfo);
 
-    Serial.printf("\n[time] current time: %s", asctime(&timeinfo));
+    Serial.printf("[time] current time = %s", asctime(&timeinfo));
 
     return now;
 };

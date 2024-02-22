@@ -33,7 +33,7 @@ modules::Sensor::Sensor(int _pin) {
             sensor.read();
         } else {
             retryCounter = 0;
-            Serial.printf("[module:sensor] error reading sensor data: %s\n", sensor.getError());
+            Serial.printf("[module:sensor] reading error = %s\n", sensor.getError());
         }
     });
 };

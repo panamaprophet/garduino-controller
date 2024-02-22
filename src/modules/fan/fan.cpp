@@ -9,7 +9,7 @@ modules::Fan::Fan(int _pin) {
 void modules::Fan::setSpeed(unsigned int speed) {
     currentSpeed = std::min(std::max(minSpeed, speed), maxSpeed);
 
-    Serial.printf("[module:fan] set speed to: %d (requested %d)\n", currentSpeed, speed);
+    Serial.printf("[module:fan] set speed to %d (requested %d)\n", currentSpeed, speed);
 
     analogWrite(pin, currentSpeed);
 }

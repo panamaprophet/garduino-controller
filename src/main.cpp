@@ -32,7 +32,7 @@ void handleStatusMessage(byte* _payload, unsigned int _length) {
 
     sprintf(
         payload,
-        "{\"temperature\":%.2f,\"humidity\":%.2f,\"isOn\":%s,\"fanSpeed\":%d,\"stabilityFactor\":%.2d}",
+        "{\"temperature\":%.2f,\"humidity\":%.2f,\"isOn\":%s,\"fanSpeed\":%d,\"stabilityFactor\":%d}",
         sensor.temperature,
         sensor.humidity,
         light.isOn ? "true" : "false",

@@ -49,7 +49,7 @@ void core::Network::setClientCertificate() {
 void core::Network::connect(std::string ssid, std::string password) {
     WiFi.begin(ssid.c_str(), password.c_str());
 
-    Serial.printf("[network] connecting: ");
+    Serial.printf("[network] connecting ");
 
     unsigned int timeout = 15000;
     unsigned int step = 500;
@@ -65,7 +65,7 @@ void core::Network::connect(std::string ssid, std::string password) {
         }
     }
 
-    Serial.println();
+    Serial.printf(" %s\n", WiFi.status() == WL_CONNECTED ? "success" : "fail");
     Serial.print("[network] ip = ");
     Serial.println(WiFi.localIP());
 };

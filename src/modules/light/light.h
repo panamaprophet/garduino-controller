@@ -18,7 +18,7 @@ namespace modules {
 
             bool isOn;
             unsigned long duration;
-            unsigned long switchIn;
+            long switchIn;
 
             Light(int _pin);
 
