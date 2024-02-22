@@ -50,17 +50,16 @@ void modules::Light::run () {
 
             digitalWrite(pin, isOn ? LOW : HIGH);
 
-            // @todo: add api to act on switch
-            // onSwitch(isOn, switchIn)
+            onSwitchCallback(isOn, switchIn);
         }
     });
 
     digitalWrite(pin, isOn ? LOW : HIGH);
 };
 
-
-typedef void readCallback(float humidity, float temperature);
-typedef void errorCallback(unsigned int error);
+void modules::Light::onSwitch(switchCallback callback) {
+    onSwitchCallback = callback;
+};
 
 
 modules::Sensor::Sensor(int _pin) {
@@ -81,9 +80,8 @@ modules::Sensor::Sensor(int _pin) {
         }
 
         if (newTemperature >= thresholdTemperature && newTemperature > temperature) {
-            // @todo: add api to act on threshold
-            // trigger threshold event
             Serial.printf("[module:sensor] threshold reached\n");
+            onThresholdCallback(newTemperature);
         }
 
         humidity = newHumidity;
@@ -109,3 +107,7 @@ void modules::Sensor::run() {
         sensor.read();
     });
 };
+
+void modules::Sensor::onThreshold(thresholdCallback callback) {
+    onThresholdCallback = callback;
+}

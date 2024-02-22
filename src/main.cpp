@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <string>
 #include <core.h>
 #include <modules.h>
 
@@ -12,6 +13,7 @@ core::Config config;
 core::Network wifi;
 core::Mqtt mqtt(wifi.client);
 core::Time timer;
+core::Scheduler scheduler;
 
 modules::Fan fan(FAN_PIN);
 modules::Light light(LIGHT_PIN);
@@ -63,9 +65,37 @@ void handleConfigurationMessage(byte* payload, unsigned int length) {
 
     Serial.printf("[handler:config] configuration applied\n");
 
-    // sendRunEvent();
+    mqtt.publish(
+        "controllers/" + config.controllerId + "/events/pub",
+        "{\"event\": \"run\", \"isOn\": \"" + std::string(light.isOn ? "true" : "false") + "\"}"
+    );
 };
 
+
+void onLightSwitch(bool isOn, unsigned long switchIn) {
+    mqtt.publish(
+        "controllers/" + config.controllerId + "/events/pub", 
+        "{\"event\":\"switch\", \"isOn\":\"" + std::string(light.isOn ? "true" : "false") + "\"}"
+    );
+};
+
+void onHighTemperature(float temperature) {
+    fan.stepUp();
+};
+
+void onUpdate() {
+    char payload[100];
+
+    sprintf(
+        payload,
+        "{\"temperature\":%.2f,\"humidity\":%.2f,\"fanSpeed\": %.2d,\"event\":\"update\"}", 
+        sensor.temperature, 
+        sensor.humidity, 
+        fan.currentSpeed
+    );
+
+    mqtt.publish("controllers/" + config.controllerId + "/events/pub", payload);
+}
 
 void setup () {
     Serial.begin(115200);
@@ -81,6 +111,10 @@ void setup () {
     mqtt.subscribe("controllers/" + config.controllerId + "/status/sub", handleStatusMessage);
 
     mqtt.publish("controllers/" + config.controllerId + "/config/pub");
+
+    light.onSwitch(onLightSwitch);
+    sensor.onThreshold(onHighTemperature);
+    scheduler.schedule(10 * 60 * 1000, onUpdate);
 };
 
 void loop () {

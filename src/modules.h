@@ -27,10 +27,13 @@ namespace modules {
             void reset();
     };
 
+    typedef void (*switchCallback)(bool isOn, unsigned long switchIn);
+
     class Light {
         private:
             Ticker ticker;
             unsigned long checkInterval = 5 * 1000;
+            switchCallback onSwitchCallback;
 
         public:
             unsigned int pin;
@@ -42,10 +45,10 @@ namespace modules {
             Light(int _pin);
 
             void run();
+            void onSwitch(switchCallback callback);
     };
 
-    typedef void readCallback(float humidity, float temperature);
-    typedef void errorCallback(unsigned int error);
+    typedef void (*thresholdCallback)(float temperature);
 
     class Sensor {
         private:
@@ -54,6 +57,7 @@ namespace modules {
             unsigned int retryCount = 5;
             unsigned int retryCounter = 0;
             unsigned int interval = 30 * 1000;
+            thresholdCallback onThresholdCallback;
 
         public:
             unsigned int pin;
@@ -68,5 +72,6 @@ namespace modules {
             Sensor(int _pin);
 
             void run();
+            void onThreshold(thresholdCallback callback);
     };
 };
