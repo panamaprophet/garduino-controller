@@ -55,17 +55,16 @@ void core::Network::connect(std::string ssid, std::string password) {
     unsigned int step = 500;
 
     while (WiFi.status() != WL_CONNECTED) {
-        Serial.print('.');
+        Serial.printf(".");
 
         delay(step);
         timeout -= step;
 
         if (timeout <= 0) {
-            Serial.print(" timeout");
+            Serial.printf(" timeout");
         }
     }
 
     Serial.printf(" %s\n", WiFi.status() == WL_CONNECTED ? "success" : "fail");
-    Serial.print("[network] ip = ");
-    Serial.println(WiFi.localIP());
+    Serial.printf("[network] ip = %s\n", WiFi.localIP().toString().c_str());
 };

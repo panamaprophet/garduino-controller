@@ -9,7 +9,7 @@ time_t core::Time::sync() {
 
     while (now < 8 * 3600 * 2) {
         delay(10);
-        Serial.print(".");
+        Serial.printf(".");
         now = time(nullptr);
     }
 
