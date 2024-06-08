@@ -46,7 +46,7 @@ void handleStatusMessage(byte* _payload, unsigned int _length) {
 void handleConfigurationMessage(byte* payload, unsigned int length) {
     Serial.printf("[handler:config] configuration received\n");
 
-    StaticJsonDocument<200> json;
+    JsonDocument json;
     deserializeJson(json, (char *)payload);
 
     light.isOn = json["isOn"].as<boolean>();

@@ -11,7 +11,7 @@ core::Config::Config() {
     file.readBytes(config, size);
     file.close();
 
-    StaticJsonDocument<200> json;
+    JsonDocument json;
     deserializeJson(json, config);
 
     controllerId = json["controllerId"].as<std::string>();
