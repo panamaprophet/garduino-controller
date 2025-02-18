@@ -4,21 +4,15 @@
 #include <core/core.h>
 #include <modules/modules.h>
 
-
-const int LIGHT_PIN = 14;
-const int FAN_PIN = 12;
-const int SENSOR_PIN = 2;
-
 core::Config config;
 core::Network wifi;
 core::Mqtt mqtt(wifi.client);
 core::Time timer;
 core::Scheduler scheduler;
 
-modules::Fan fan(FAN_PIN);
-modules::Light light(LIGHT_PIN);
-modules::Sensor sensor(SENSOR_PIN);
-
+modules::Fan fan(config.pinFan);
+modules::Light light(config.pinLight);
+modules::Sensor sensor(config.pinSensor);
 
 void handleRebootMessage(byte* _payload, unsigned int _length) {
     Serial.printf("[handler:reboot] reboot was requested\n");

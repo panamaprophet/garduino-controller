@@ -16,6 +16,11 @@ core::Config::Config() {
 
     controllerId = json["controllerId"].as<std::string>();
     host = json["host"].as<std::string>();
-    ssid = json["ssid"].as<std::string>();
-    password = json["password"].as<std::string>();
+
+    ssid = json["wifi"]["ssid"].as<std::string>();
+    password = json["wifi"]["password"].as<std::string>();
+
+    pinFan = json["pins"]["fan"].as<int>();
+    pinLight = json["pins"]["light"].as<int>();
+    pinSensor = json["pins"]["sensor"].as<int>();
 };

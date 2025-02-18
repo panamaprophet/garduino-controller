@@ -11,6 +11,10 @@ namespace core {
             std::string host;
             std::string controllerId;
 
+            int pinFan;
+            int pinLight;
+            int pinSensor;
+
             Config();
     };
 }
