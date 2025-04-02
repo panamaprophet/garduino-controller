@@ -61,7 +61,7 @@ void handleConfigurationMessage(byte* payload, unsigned int length) {
 
     mqtt.publish(
         "controllers/" + config.controllerId + "/events/pub",
-        "{\"event\": \"run\", \"isOn\": \"" + std::string(light.isOn ? "true" : "false") + "\"}"
+        "{\"event\": \"run\", \"isOn\": " + std::string(light.isOn ? "true" : "false") + "}"
     );
 };
 
@@ -69,7 +69,7 @@ void handleConfigurationMessage(byte* payload, unsigned int length) {
 void onLightSwitch(bool isOn, unsigned long switchIn) {
     mqtt.publish(
         "controllers/" + config.controllerId + "/events/pub",
-        "{\"event\":\"switch\", \"isOn\":\"" + std::string(light.isOn ? "true" : "false") + "\"}"
+        "{\"event\":\"switch\", \"isOn\":" + std::string(light.isOn ? "true" : "false") + "}"
     );
 };
 
@@ -95,7 +95,7 @@ void onUpdate() {
 void setup () {
     Serial.begin(115200);
 
-    wifi.connect(config.ssid, config.password);
+    wifi.connect(config.ssid.c_str(), config.password.c_str());
 
     timer.sync();
 
