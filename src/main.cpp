@@ -22,26 +22,25 @@ void handleRebootMessage(byte* _payload, unsigned int _length) {
 void handleStatusMessage(byte* _payload, unsigned int _length) {
     Serial.printf("[handler:status] status was requested\n");
 
-    char payload[100];
+    char topic[100];
+    char message[100];
+
+    sprintf(topic, "controllers/%s/status/pub", config.controllerId);
 
     sprintf(
-        payload,
+        message,
         "{\"temperature\":%.2f,\"humidity\":%.2f,\"isOn\":%s,\"fanSpeed\":%d,\"stabilityFactor\":%d}",
-        sensor.temperature,
-        sensor.humidity,
-        light.isOn ? "true" : "false",
-        fan.currentSpeed,
-        sensor.stabilityFactor
+        sensor.temperature, sensor.humidity, light.isOn ? "true" : "false", fan.currentSpeed, sensor.stabilityFactor
     );
 
-    mqtt.publish("controllers/" + config.controllerId + "/status/pub", payload);
+    mqtt.publish(topic, message);
 };
 
 void handleConfigurationMessage(byte* payload, unsigned int length) {
     Serial.printf("[handler:config] configuration received\n");
 
     JsonDocument json;
-    deserializeJson(json, (char *)payload);
+    deserializeJson(json, (char*)payload);
 
     light.isOn = json["isOn"].as<boolean>();
     light.duration = json["duration"].as<unsigned long>();
@@ -53,24 +52,30 @@ void handleConfigurationMessage(byte* payload, unsigned int length) {
 
     json.clear();
 
+    Serial.printf("[handler:config] configuration applied\n");
+
     sensor.run();
     light.run();
     fan.run();
 
-    Serial.printf("[handler:config] configuration applied\n");
+    char topic[100];
+    char message[100];
 
-    mqtt.publish(
-        "controllers/" + config.controllerId + "/events/pub",
-        "{\"event\": \"run\", \"isOn\": " + std::string(light.isOn ? "true" : "false") + "}"
-    );
+    sprintf(topic, "controllers/%s/events/pub", config.controllerId);
+    sprintf(message, "{\"event\": \"run\", \"isOn\": %s}", light.isOn ? "true" : "false");
+
+    mqtt.publish(topic, message);
 };
 
 
 void onLightSwitch(bool isOn, unsigned long switchIn) {
-    mqtt.publish(
-        "controllers/" + config.controllerId + "/events/pub",
-        "{\"event\":\"switch\", \"isOn\":" + std::string(light.isOn ? "true" : "false") + "}"
-    );
+    char topic[100];
+    char message[100];
+
+    sprintf(topic, "controllers/%s/events/pub", config.controllerId);
+    sprintf(message, "{\"event\":\"switch\", \"isOn\":%s}", light.isOn ? "true" : "false");
+
+    mqtt.publish(topic, message);
 };
 
 void onHighTemperature(float temperature) {
@@ -78,40 +83,55 @@ void onHighTemperature(float temperature) {
 };
 
 void onUpdate() {
-    char payload[100];
+    char topic[100];
+    char message[100];
+
+    sprintf(topic, "controllers/%s/events/pub", config.controllerId);
 
     sprintf(
-        payload,
-        "{\"temperature\":%.2f,\"humidity\":%.2f,\"fanSpeed\": %.2d,\"event\":\"update\"}",
+        message,
+        "{\"temperature\":%.2f,\"humidity\":%.2f,\"fanSpeed\": %d,\"event\":\"update\"}",
         sensor.temperature,
         sensor.humidity,
         fan.currentSpeed
     );
 
-    mqtt.publish("controllers/" + config.controllerId + "/events/pub", payload);
+    mqtt.publish(topic, message);
 }
 
 
-void setup () {
+void setup() {
     Serial.begin(115200);
 
-    wifi.connect(config.ssid.c_str(), config.password.c_str());
+    wifi.connect(config.ssid, config.password);
 
     timer.sync();
 
     mqtt.connect(config.host, config.controllerId);
 
-    mqtt.subscribe("controllers/" + config.controllerId + "/config/sub", handleConfigurationMessage);
-    mqtt.subscribe("controllers/" + config.controllerId + "/reboot/sub", handleRebootMessage);
-    mqtt.subscribe("controllers/" + config.controllerId + "/status/sub", handleStatusMessage);
+    char configTopic[100];
+    char rebootTopic[100];
+    char statusTopic[100];
 
-    mqtt.publish("controllers/" + config.controllerId + "/config/pub");
+    sprintf(configTopic, "controllers/%s/config/sub", config.controllerId);
+    sprintf(rebootTopic, "controllers/%s/reboot/sub", config.controllerId);
+    sprintf(statusTopic, "controllers/%s/status/sub", config.controllerId);
+
+    mqtt.subscribe(configTopic, handleConfigurationMessage);
+    mqtt.subscribe(rebootTopic, handleRebootMessage);
+    mqtt.subscribe(statusTopic, handleStatusMessage);
 
     light.onSwitch(onLightSwitch);
     sensor.onThreshold(onHighTemperature);
     scheduler.schedule(10 * 60 * 1000, onUpdate);
+
+    char topic[100];
+
+    sprintf(topic, "controllers/%s/config/pub", config.controllerId);
+
+    mqtt.publish(topic);
 };
 
-void loop () {
+void loop() {
     mqtt.loop();
 }

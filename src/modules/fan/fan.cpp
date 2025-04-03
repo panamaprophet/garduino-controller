@@ -11,6 +11,7 @@ void modules::Fan::setSpeed(unsigned int speed) {
 
     Serial.printf("[module:fan] set speed to %d (requested %d)\n", currentSpeed, speed);
 
+    analogWriteFreq(150);
     analogWrite(pin, currentSpeed);
 }
 

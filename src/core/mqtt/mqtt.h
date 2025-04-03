@@ -10,17 +10,17 @@ namespace core {
         private:
             PubSubClient client;
             std::map<std::string, mqttCallback> callbacks;
-            std::string _host;
-            std::string _id;
+            char* _host;
+            char* _id;
 
             void resubscribe();
 
         public:
             Mqtt(Client& networkClient);
 
-            void subscribe(std::string topic, mqttCallback callback);
-            void connect(std::string host, std::string id, uint16 port = 8883);
-            void publish(std::string topic, std::string payload = "{}");
+            void subscribe(const char* topic, mqttCallback callback);
+            void connect(const char* host, const char* id, uint16 port = 8883);
+            void publish(const char* topic, const char* payload = "{}");
             void loop();
     };
 }

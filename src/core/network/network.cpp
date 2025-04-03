@@ -49,6 +49,8 @@ void core::Network::setClientCertificate() {
 void core::Network::connect(const char* ssid, const char* password) {
     WiFi.setAutoReconnect(true);
 
+    WiFi.mode(WIFI_STA);
+
     WiFi.begin(ssid, password);
 
     Serial.printf("[network] connecting ");

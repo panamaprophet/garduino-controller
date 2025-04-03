@@ -5,28 +5,29 @@ core::Mqtt::Mqtt(Client& networkClient) {
 };
 
 void core::Mqtt::resubscribe() {
-    for (auto const& item: callbacks) {
+    for (auto const& item : callbacks) {
         client.subscribe(item.first.c_str());
     }
 }
 
-void core::Mqtt::subscribe(std::string topic, mqttCallback callback) {
-    Serial.printf("[mqtt] subscribing to %s\n", topic.c_str());
+void core::Mqtt::subscribe(const char* topic, mqttCallback callback) {
+    Serial.printf("[mqtt] subscribing to %s\n", topic);
 
-    callbacks.insert_or_assign(topic, callback);
-    client.subscribe(topic.c_str());
+    callbacks[std::string(topic)] = callback;
+    client.subscribe(topic);
 }
 
-void core::Mqtt::connect(std::string host, std::string id, uint16 port) {
-    _host = host;
-    _id = id;
+void core::Mqtt::connect(const char* host, const char* id, uint16 port) {
+    _host = strdup(host);
+    _id = strdup(id);
 
     Serial.printf("[mqtt] connecting ... ");
 
-    client.setServer(host.c_str(), port);
+    client.setServer(host, port);
 
     client.setCallback([&](char* _topic, byte* payload, unsigned int length) {
-        const std::string topic(_topic);
+        std::string topic(_topic);
+
         auto result = callbacks.find(topic);
 
         payload[length] = '\0';
@@ -34,11 +35,15 @@ void core::Mqtt::connect(std::string host, std::string id, uint16 port) {
         Serial.printf("[mqtt] message from %s: %s\n", _topic, payload);
 
         if (result != callbacks.end()) {
-            result -> second(payload, length);
+            result->second(payload, length);
         }
-    });
 
-    client.connect(id.c_str());
+        if (result == callbacks.end()) {
+            Serial.printf("[mqtt] callback not found for %s\n", _topic);
+        }
+        });
+
+    client.connect(id);
 
     Serial.printf("%s\n", client.connected() ? "success" : "fail");
 
@@ -50,9 +55,9 @@ void core::Mqtt::connect(std::string host, std::string id, uint16 port) {
     resubscribe();
 };
 
-void core::Mqtt::publish(std::string topic, std::string payload) {
-    Serial.printf("[mqtt] publishing to %s: %s\n", topic.c_str(), payload.c_str());
-    client.publish(topic.c_str(), payload.c_str());
+void core::Mqtt::publish(const char* topic, const char* payload) {
+    Serial.printf("[mqtt] publishing to %s: %s\n", topic, payload);
+    client.publish(topic, payload);
 };
 
 void core::Mqtt::loop() {
