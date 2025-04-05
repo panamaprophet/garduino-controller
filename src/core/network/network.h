@@ -15,6 +15,6 @@ namespace core {
 
             Network();
 
-            void connect(std::string ssid, std::string password);
+            void connect(const char* ssid, const char* password);
     };
 }

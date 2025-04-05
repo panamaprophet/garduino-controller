@@ -7,6 +7,9 @@
 namespace modules {
     typedef void (*switchCallback)(bool isOn, unsigned long switchIn);
 
+    const unsigned int PIN_ON = 255;
+    const unsigned int PIN_OFF = 0;
+
     class Light {
         private:
             Ticker ticker;

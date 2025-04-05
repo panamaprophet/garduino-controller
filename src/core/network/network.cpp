@@ -9,12 +9,12 @@ core::Network::Network() {
 void core::Network::setRootCertificate() {
     Serial.printf("[network] loading root certificate...\n");
 
-    auto rootCertificateFile = LittleFS.open("root.crt", "r");
-    auto rootCertificateSize = rootCertificateFile.size();
+    auto file = LittleFS.open("root.crt", "r");
+    auto rootCertificateSize = file.size();
     char *rootCertificateBuffer = new char[rootCertificateSize];
 
-    rootCertificateFile.readBytes(rootCertificateBuffer, rootCertificateSize);
-    rootCertificateFile.close();
+    file.readBytes(rootCertificateBuffer, rootCertificateSize);
+    file.close();
 
     const BearSSL::X509List* cert = new BearSSL::X509List(rootCertificateBuffer);
 
@@ -46,14 +46,18 @@ void core::Network::setClientCertificate() {
     client.setClientRSACert(clientCertificate, key);
 };
 
-void core::Network::connect(std::string ssid, std::string password) {
-    WiFi.begin(ssid.c_str(), password.c_str());
+void core::Network::connect(const char* ssid, const char* password) {
+    WiFi.setAutoReconnect(true);
+
+    WiFi.mode(WIFI_STA);
+
+    WiFi.begin(ssid, password);
 
     Serial.printf("[network] connecting ");
 
     unsigned int timeout = 15000;
     unsigned int step = 500;
-
+    
     while (WiFi.status() != WL_CONNECTED) {
         Serial.printf(".");
 

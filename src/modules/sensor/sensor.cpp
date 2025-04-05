@@ -44,6 +44,8 @@ void modules::Sensor::run() {
     ticker.attach_ms(interval, [&]() {
         sensor.read();
     });
+
+    sensor.read();
 };
 
 void modules::Sensor::onThreshold(thresholdCallback callback) {

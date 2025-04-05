@@ -6,7 +6,7 @@ core::Config::Config() {
     auto file = LittleFS.open("config.json", "r");
     auto size = file.size();
 
-    char *config = new char[size];
+    char config[size];
 
     file.readBytes(config, size);
     file.close();
@@ -14,8 +14,15 @@ core::Config::Config() {
     JsonDocument json;
     deserializeJson(json, config);
 
-    controllerId = json["controllerId"].as<std::string>();
-    host = json["host"].as<std::string>();
-    ssid = json["ssid"].as<std::string>();
-    password = json["password"].as<std::string>();
+    strcpy(controllerId, json["controllerId"]);
+    strcpy(host, json["host"]);
+
+    strcpy(ssid, json["wifi"]["ssid"]);
+    strcpy(password, json["wifi"]["password"]);
+
+    pinFan = json["pins"]["fan"].as<int>();
+    pinLight = json["pins"]["light"].as<int>();
+    pinSensor = json["pins"]["sensor"].as<int>();
+
+    json.clear();
 };

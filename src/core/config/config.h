@@ -6,10 +6,14 @@
 namespace core {
     class Config {
         public:
-            std::string ssid;
-            std::string password;
-            std::string host;
-            std::string controllerId;
+            char ssid[64];
+            char password[64];
+            char host[128];
+            char controllerId[64];
+
+            int pinFan;
+            int pinLight;
+            int pinSensor;
 
             Config();
     };
