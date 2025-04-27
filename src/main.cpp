@@ -16,7 +16,16 @@ modules::Sensor sensor(config.pinSensor);
 
 void handleRebootMessage(byte* _payload, unsigned int _length) {
     Serial.printf("[handler:reboot] reboot was requested\n");
-    ESP.restart();
+
+    char topic[100];
+    char message[100];
+
+    sprintf(topic, "controllers/%s/reboot/pub", config.controllerId);
+    sprintf(message, "{\"event\":\"reboot\"}");
+
+    mqtt.publish(topic, message);
+
+    scheduler.scheduleOnce(5 * 1000, [](){ ESP.restart(); });
 };
 
 void handleStatusMessage(byte* _payload, unsigned int _length) {
@@ -76,6 +85,10 @@ void onLightSwitch(bool isOn, unsigned long switchIn) {
     sprintf(message, "{\"event\":\"switch\", \"isOn\":%s}", light.isOn ? "true" : "false");
 
     mqtt.publish(topic, message);
+
+    if (!isOn) {
+        scheduler.scheduleOnce(60 * 1000, [](){ fan.reset(); });
+    }
 };
 
 void onHighTemperature(float temperature) {
