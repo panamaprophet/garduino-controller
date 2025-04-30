@@ -6,7 +6,7 @@ namespace core {
 
     class Scheduler {
         private:
-            std::vector<Ticker> tickers;
+            std::vector<std::unique_ptr<Ticker>> tickers;
 
         public:
             void schedule(unsigned long interval, SchedulerCallback callback, bool repeat = true);
