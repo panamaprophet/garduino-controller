@@ -4,23 +4,21 @@ void core::Scheduler::schedule(unsigned long interval, SchedulerCallback callbac
     Serial.printf("[scheduler] scheduling %s call every %lu ms\n", repeat ? "recurrent" : "one-shot", interval);
 
     for (auto ticker = tickers.begin(); ticker != tickers.end();) {
-        if (!ticker -> active()) {
-            Serial.println("[scheduler] removing expired task");
+        if (!(*ticker)->active()) {
             ticker = tickers.erase(ticker);
-            break;
+        } else {
+            ++ticker;
         }
-
-        ticker++;
     }
 
-    tickers.push_back(Ticker());
+    tickers.push_back(std::make_unique<Ticker>());
 
     if (repeat) {
-        tickers.back().attach_ms(interval, callback);
+        tickers.back() -> attach_ms(interval, callback);
     }
 
     if (!repeat) {
-        tickers.back().once_ms(interval, callback);
+        tickers.back() -> once_ms(interval, callback);
     }
 }
 
