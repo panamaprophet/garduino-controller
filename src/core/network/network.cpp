@@ -2,48 +2,45 @@
 
 core::Network::Network() {
     LittleFS.begin();
-    setRootCertificate();
-    setClientCertificate();
+    loadRootCertificate();
+    loadClientCertificate();
 };
 
-void core::Network::setRootCertificate() {
+void core::Network::loadRootCertificate() {
     Serial.printf("[network] loading root certificate...\n");
 
     auto file = LittleFS.open("root.crt", "r");
-    auto rootCertificateSize = file.size();
-    char *rootCertificateBuffer = new char[rootCertificateSize];
+    auto size = file.size();
+    auto buffer = std::make_unique<char[]>(size);
 
-    file.readBytes(rootCertificateBuffer, rootCertificateSize);
+    file.readBytes(buffer.get(), size);
     file.close();
 
-    const BearSSL::X509List* cert = new BearSSL::X509List(rootCertificateBuffer);
-
-    client.setTrustAnchors(cert);
+    rootCertificate = std::make_unique<BearSSL::X509List>(buffer.get());
+    client.setTrustAnchors(rootCertificate.get());
 };
 
-void core::Network::setClientCertificate() {
+void core::Network::loadClientCertificate() {
     Serial.printf("[network] loading client certificate...\n");
 
-    auto clientCertificateFile = LittleFS.open("controller.cert.pem", "r");
-    auto clientCertificateSize = clientCertificateFile.size();
+    auto certFile = LittleFS.open("controller.cert.pem", "r");
+    auto certSize = certFile.size();
+    auto certBuffer = std::make_unique<char[]>(certSize);
 
-    char *clientCertificateBuffer = new char[clientCertificateSize];
+    certFile.readBytes(certBuffer.get(), certSize);
+    certFile.close();
 
-    clientCertificateFile.readBytes(clientCertificateBuffer, clientCertificateSize);
-    clientCertificateFile.close();
+    auto keyFile = LittleFS.open("controller.private.key", "r");
+    auto keySize = keyFile.size();
+    auto keyBuffer = std::make_unique<char[]>(keySize);
 
-    auto privateKeyFile = LittleFS.open("controller.private.key", "r");
-    auto privateKeySize = privateKeyFile.size();
+    keyFile.readBytes(keyBuffer.get(), keySize);
+    keyFile.close();
 
-    char *privateKeyBuffer = new char[privateKeySize];
+    clientCertificate = std::make_unique<BearSSL::X509List>(certBuffer.get());
+    privateKey = std::make_unique<BearSSL::PrivateKey>(keyBuffer.get());
 
-    privateKeyFile.readBytes(privateKeyBuffer, privateKeySize);
-    privateKeyFile.close();
-
-    const BearSSL::X509List* clientCertificate = new BearSSL::X509List(clientCertificateBuffer);
-    const BearSSL::PrivateKey* key = new BearSSL::PrivateKey(privateKeyBuffer);
-
-    client.setClientRSACert(clientCertificate, key);
+    client.setClientRSACert(clientCertificate.get(), privateKey.get());
 };
 
 void core::Network::connect(const char* ssid, const char* password) {

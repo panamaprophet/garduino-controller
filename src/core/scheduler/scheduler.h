@@ -1,3 +1,5 @@
+#pragma once
+
 #include <Ticker.h>
 #include <vector>
 

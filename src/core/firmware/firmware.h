@@ -1,3 +1,5 @@
+#pragma once
+
 #include <Arduino.h>
 #include <WiFiClient.h>
 #include <ESP8266HTTPUpdate.h>

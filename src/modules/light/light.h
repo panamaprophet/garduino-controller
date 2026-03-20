@@ -1,8 +1,7 @@
+#pragma once
+
 #include <Arduino.h>
 #include <Ticker.h>
-#include <DHT.h>
-#include <stdint.h>
-#include <algorithm>
 
 namespace modules {
     typedef void (*switchCallback)(bool isOn, unsigned long switchIn);

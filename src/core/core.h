@@ -1,3 +1,5 @@
+#pragma once
+
 #include <core/config/config.h>
 #include <core/network/network.h>
 #include <core/mqtt/mqtt.h>
