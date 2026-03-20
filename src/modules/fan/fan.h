@@ -3,16 +3,23 @@
 #include <Arduino.h>
 #include <Ticker.h>
 #include <algorithm>
+#include <modules/module.h>
 
 namespace modules {
-    class Fan {
-        private:
-            Ticker ticker;
-
-            void setSpeed(unsigned int speed);
-
+    class Fan : public Module {
         public:
+            Fan(int pin);
+
+            const char* name() const override;
+            void start(const JsonObject& config, core::Context& context) override;
+            void getStatus(JsonObject& status) const override;
+
+            void stepUp();
+            void reset();
+
+        private:
             unsigned int pin;
+            Ticker ticker;
 
             unsigned int currentSpeed = 0;
             unsigned int maxSpeed = 255;
@@ -20,10 +27,6 @@ namespace modules {
             unsigned int defaultSpeed = 120;
             unsigned int step = 50;
 
-            Fan(int _pin);
-
-            void run();
-            void stepUp();
-            void reset();
+            void setSpeed(unsigned int speed);
     };
-};
+}

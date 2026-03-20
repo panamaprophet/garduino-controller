@@ -6,3 +6,7 @@
 #include <core/time/time.h>
 #include <core/scheduler/scheduler.h>
 #include <core/firmware/firmware.h>
+#include <core/event-bus/event-bus.h>
+#include <core/message-bus/message-bus.h>
+#include <core/context/context.h>
+#include <core/registry/registry.h>
