@@ -3,3 +3,4 @@
 #include <core/mqtt/mqtt.h>
 #include <core/time/time.h>
 #include <core/scheduler/scheduler.h>
+#include <core/firmware/firmware.h>
