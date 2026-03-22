@@ -2,29 +2,27 @@
 
 #include <Arduino.h>
 #include <Ticker.h>
+#include <modules/module.h>
 
 namespace modules {
-    typedef void (*switchCallback)(bool isOn, unsigned long switchIn);
+    class Light : public Module {
+        public:
+            Light(core::EventBus& eventBus, int pin);
 
-    const unsigned int PIN_ON = 255;
-    const unsigned int PIN_OFF = 0;
+            const char* name() const override;
+            void apply(const JsonObject& config) override;
+            JsonDocument getStatus() const override;
 
-    class Light {
         private:
+            static const unsigned int PIN_ON = 255;
+            static const unsigned int PIN_OFF = 0;
+
+            unsigned int pin;
             Ticker ticker;
             unsigned long checkInterval = 5 * 1000;
-            switchCallback onSwitchCallback;
 
-        public:
-            unsigned int pin;
-
-            bool isOn;
-            unsigned long duration;
-            long switchIn;
-
-            Light(int _pin);
-
-            void run();
-            void onSwitch(switchCallback callback);
+            bool isOn = false;
+            unsigned long duration = 0;
+            long switchIn = 0;
     };
-};
+}

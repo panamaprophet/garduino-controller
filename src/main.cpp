@@ -1,210 +1,139 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
-#include <string>
 #include <core/core.h>
 #include <modules/modules.h>
 
+namespace {
+    constexpr const char* EVENTS_CHANNEL = "events/pub";
+    constexpr const char* EVENT_TEMPERATURE_HIGH = "temperature:high";
+    constexpr const char* EVENT_LIGHT_SWITCH = "light:switch";
+    constexpr unsigned long REBOOT_DELAY_MS = 5 * 1000;
+    constexpr unsigned long FAN_RESET_DELAY_MS = 60 * 1000;
+    constexpr unsigned long TELEMETRY_INTERVAL_MS = 10 * 60 * 1000;
+}
+
 
 core::Config config;
-core::Network wifi;
-core::Mqtt mqtt(wifi.client);
+core::Network network;
+core::Mqtt mqtt(network.client);
 core::Time timer;
 core::Scheduler scheduler;
-core::Firmware firmware(wifi.client);
+core::Firmware firmware(network.client);
+core::EventBus eventBus;
+core::MessageBus messageBus(mqtt, config.controllerId);
 
-modules::Fan fan(config.pinFan);
-modules::Light light(config.pinLight);
-modules::Sensor sensor(config.pinSensor);
+modules::Fan fan(eventBus, config.pinFan);
+modules::Light light(eventBus, config.pinLight);
+modules::Sensor sensor(eventBus, config.pinSensor);
+
+core::ModuleRegistry registry({&fan, &light, &sensor});
 
 
-void handleFirmwareUpdateMessage(byte* payload, unsigned int length) {
-    Serial.printf("[handler:firmware] update received\n");
+void publishStatus() {
+    auto status = registry.getStatus();
+    status["event"] = "update";
 
-    JsonDocument doc;
-    DeserializationError err = deserializeJson(doc, payload, length);
+    char buffer[256];
+    serializeJson(status, buffer, sizeof(buffer));
 
-    if (err) {
-        Serial.printf("[handler:firmware] invalid json: %s\n", err.c_str());
+    messageBus.publish(EVENTS_CHANNEL, buffer);
+}
+
+void onConfigReceived(byte* payload, unsigned int length) {
+    Serial.printf("[handler:config] configuration received\n");
+
+    JsonDocument document;
+    DeserializationError error = deserializeJson(document, payload, length);
+
+    if (error) {
+        Serial.printf("[handler:config] invalid json: %s\n", error.c_str());
         return;
     }
 
-    const char* url = doc["url"].as<const char*>();
-    const char* md5 = doc["md5"].as<const char*>();
+    registry.apply(document.as<JsonObject>());
+
+    messageBus.publish(EVENTS_CHANNEL, R"({"event":"run"})");
+}
+
+void onStatusRequested(byte* payload, unsigned int length) {
+    Serial.printf("[handler:status] status requested\n");
+    publishStatus();
+}
+
+void onRebootRequested(byte* payload, unsigned int length) {
+    Serial.printf("[handler:reboot] reboot requested\n");
+
+    messageBus.publish(EVENTS_CHANNEL, R"({"event":"reboot"})");
+
+    scheduler.scheduleOnce(REBOOT_DELAY_MS, []() { ESP.restart(); });
+}
+
+void onFirmwareUpdateRequested(byte* payload, unsigned int length) {
+    Serial.printf("[handler:firmware] update received\n");
+
+    JsonDocument document;
+    DeserializationError error = deserializeJson(document, payload, length);
+
+    if (error) {
+        Serial.printf("[handler:firmware] invalid json: %s\n", error.c_str());
+        return;
+    }
+
+    const char* url = document["url"].as<const char*>();
+    const char* md5 = document["md5"].as<const char*>();
 
     firmware.update(url, md5);
-}
-
-void handleRebootMessage(byte* _payload, unsigned int _length) {
-    Serial.printf("[handler:reboot] reboot was requested\n");
-
-    char topic[100];
-    char message[100];
-
-    sprintf(topic, "controllers/%s/reboot/pub", config.controllerId);
-    sprintf(message, "{\"event\":\"reboot\"}");
-
-    mqtt.publish(topic, message);
-
-    scheduler.scheduleOnce(5 * 1000, [](){ ESP.restart(); });
-};
-
-void handleStatusMessage(byte* _payload, unsigned int _length) {
-    Serial.printf("[handler:status] status was requested\n");
-
-    char topic[100];
-    char message[100];
-
-    sprintf(topic, "controllers/%s/status/pub", config.controllerId);
-
-    sprintf(
-        message,
-        "{\"temperature\":%.2f,\"humidity\":%.2f,\"isOn\":%s,\"fanSpeed\":%d,\"stabilityFactor\":%d}",
-        sensor.temperature, sensor.humidity, light.isOn ? "true" : "false", fan.currentSpeed, sensor.stabilityFactor
-    );
-
-    mqtt.publish(topic, message);
-};
-
-void handleConfigurationMessage(byte* payload, unsigned int length) {
-    Serial.printf("[handler:config] configuration received\n");
-
-    JsonDocument json;
-    deserializeJson(json, (char*)payload);
-
-    light.isOn = json["isOn"].as<boolean>();
-    light.duration = json["duration"].as<unsigned long>();
-    light.switchIn = json["switchIn"].as<unsigned long>();
-
-    fan.defaultSpeed = json["fanSpeed"].as<unsigned int>();
-
-    sensor.thresholdTemperature = json["thresholdTemperature"].as<unsigned int>();
-
-    json.clear();
-
-    Serial.printf("[handler:config] configuration applied\n");
-
-    sensor.run();
-    light.run();
-    fan.run();
-
-    char topic[100];
-    char message[100];
-
-    sprintf(topic, "controllers/%s/events/pub", config.controllerId);
-    sprintf(message, "{\"event\": \"run\", \"isOn\": %s}", light.isOn ? "true" : "false");
-
-    mqtt.publish(topic, message);
-};
-
-
-void onLightSwitch(bool isOn, unsigned long switchIn) {
-    char topic[100];
-    char message[100];
-
-    sprintf(topic, "controllers/%s/events/pub", config.controllerId);
-    sprintf(message, "{\"event\":\"switch\", \"isOn\":%s}", light.isOn ? "true" : "false");
-
-    mqtt.publish(topic, message);
-
-    if (!isOn) {
-        scheduler.scheduleOnce(60 * 1000, [](){ fan.reset(); });
-    }
-};
-
-void onHighTemperature(float temperature) {
-    fan.stepUp();
-};
-
-void onUpdate() {
-    char topic[100];
-    char message[100];
-
-    sprintf(topic, "controllers/%s/events/pub", config.controllerId);
-
-    sprintf(
-        message,
-        "{\"temperature\":%.2f,\"humidity\":%.2f,\"fanSpeed\": %d,\"event\":\"update\"}",
-        sensor.temperature,
-        sensor.humidity,
-        fan.currentSpeed
-    );
-
-    mqtt.publish(topic, message);
-}
-
-void onFirmwareUpdateStart() {
-    char topic[100];
-
-    sprintf(topic, "controllers/%s/firmware/update/pub", config.controllerId);
-
-    mqtt.publish(topic, "{\"event\":\"started\"}");
-
-    Serial.printf("[firmware] update started\n");
-}
-
-void onFirmwareUpdateSuccess() {
-    char topic[100];
-
-    sprintf(topic, "controllers/%s/firmware/update/pub", config.controllerId);
-
-    mqtt.publish(topic, "{\"event\":\"success\"}");
-
-    scheduler.scheduleOnce(5 * 1000, []() { ESP.restart(); });
-
-    Serial.printf("[firmware] update success\n");
-}
-
-void onFirmwareUpdateError(const char* errorMessage) {
-    char topic[100];
-    char message[256];
-
-    sprintf(topic, "controllers/%s/firmware/update/pub", config.controllerId);
-    sprintf(message, "{\"event\":\"error\",\"message\":\"%s\"}", errorMessage);
-
-    mqtt.publish(topic, message);
-
-    Serial.printf("[firmware] update error: %s\n", errorMessage);
 }
 
 
 void setup() {
     Serial.begin(115200);
 
-    wifi.connect(config.ssid, config.password);
-
+    network.connect(config.ssid, config.password);
     timer.sync();
-
     mqtt.connect(config.host, config.controllerId);
 
-    char configTopic[100];
-    char rebootTopic[100];
-    char statusTopic[100];
-    char firmwareTopic[100];
+    firmware.onStart([]() {
+        messageBus.publish(EVENTS_CHANNEL, R"({"event":"firmware:update:started"})");
+        Serial.printf("[firmware] update started\n");
+    });
 
-    sprintf(configTopic, "controllers/%s/config/sub", config.controllerId);
-    sprintf(rebootTopic, "controllers/%s/reboot/sub", config.controllerId);
-    sprintf(statusTopic, "controllers/%s/status/sub", config.controllerId);
-    sprintf(firmwareTopic, "controllers/%s/firmware/update/sub", config.controllerId);
+    firmware.onSuccess([]() {
+        messageBus.publish(EVENTS_CHANNEL, R"({"event":"firmware:update:success"})");
+        scheduler.scheduleOnce(REBOOT_DELAY_MS, []() { ESP.restart(); });
+        Serial.printf("[firmware] update success\n");
+    });
 
-    firmware.onStart(onFirmwareUpdateStart);
-    firmware.onSuccess(onFirmwareUpdateSuccess);
-    firmware.onError(onFirmwareUpdateError);
+    firmware.onError([](const char* errorMessage) {
+        char message[256];
+        snprintf(message, sizeof(message), R"({"event":"firmware:update:error","message":"%s"})", errorMessage);
+        messageBus.publish(EVENTS_CHANNEL, message);
+        Serial.printf("[firmware] update error: %s\n", errorMessage);
+    });
 
-    mqtt.subscribe(configTopic, handleConfigurationMessage);
-    mqtt.subscribe(firmwareTopic, handleFirmwareUpdateMessage);
-    mqtt.subscribe(rebootTopic, handleRebootMessage);
-    mqtt.subscribe(statusTopic, handleStatusMessage);
-    
-    light.onSwitch(onLightSwitch);
-    sensor.onThreshold(onHighTemperature);
-    scheduler.schedule(10 * 60 * 1000, onUpdate);
+    eventBus.on(EVENT_TEMPERATURE_HIGH, [](const char*) {
+        fan.stepUp();
+    });
 
-    char topic[100];
+    eventBus.on(EVENT_LIGHT_SWITCH, [](const char* data) {
+        char message[128];
+        snprintf(message, sizeof(message), R"({"event":"light:switch","isOn":%s})", data);
+        messageBus.publish(EVENTS_CHANNEL, message);
 
-    sprintf(topic, "controllers/%s/config/pub", config.controllerId);
+        if (strcmp(data, "false") == 0) {
+            scheduler.scheduleOnce(FAN_RESET_DELAY_MS, []() { fan.reset(); });
+        }
+    });
 
-    mqtt.publish(topic);
-};
+    messageBus.subscribe("config/sub", onConfigReceived);
+    messageBus.subscribe("status/sub", onStatusRequested);
+    messageBus.subscribe("reboot/sub", onRebootRequested);
+    messageBus.subscribe("firmware/update/sub", onFirmwareUpdateRequested);
+
+    scheduler.schedule(TELEMETRY_INTERVAL_MS, publishStatus);
+
+    messageBus.publish("config/pub");
+}
 
 void loop() {
     mqtt.loop();

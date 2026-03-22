@@ -3,16 +3,35 @@
 core::ModuleRegistry::ModuleRegistry(std::initializer_list<modules::Module*> modules)
     : modules(modules) {}
 
-void core::ModuleRegistry::apply(const JsonObject& config, Context& context) {
+void core::ModuleRegistry::apply(const JsonObject& config) {
     for (auto* module : modules) {
-        JsonObject moduleConfig = config[module->name()];
-        module->start(moduleConfig, context);
+        module->apply(config[module->name()]);
     }
 }
 
-void core::ModuleRegistry::getStatusAll(JsonObject& status) const {
+JsonDocument core::ModuleRegistry::getStatus(std::initializer_list<const char*> names) const {
+    JsonDocument status;
+
+    bool hasFilter = names.size() > 0;
+
     for (auto* module : modules) {
-        JsonObject moduleStatus = status[module->name()].to<JsonObject>();
-        module->getStatus(moduleStatus);
+        if (hasFilter) {
+            bool matched = false;
+
+            for (auto* name : names) {
+                if (strcmp(module->name(), name) == 0) {
+                    matched = true;
+                    break;
+                }
+            }
+
+            if (!matched) {
+                continue;
+            }
+        }
+
+        status[module->name()].set(module->getStatus());
     }
+
+    return status;
 }

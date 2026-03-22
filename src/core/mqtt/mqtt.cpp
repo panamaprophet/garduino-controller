@@ -10,7 +10,7 @@ void core::Mqtt::resubscribe() {
     }
 }
 
-void core::Mqtt::subscribe(const char* topic, mqttCallback callback) {
+void core::Mqtt::subscribe(const char* topic, MqttCallback callback) {
     Serial.printf("[mqtt] subscribing to %s\n", topic);
 
     callbacks[std::string(topic)] = callback;
@@ -25,7 +25,7 @@ void core::Mqtt::connect(const char* host, const char* id, uint16 port) {
 
     client.setServer(host, port);
 
-    client.setCallback([&](char* _topic, byte* payload, unsigned int length) {
+    client.setCallback([this](char* _topic, byte* payload, unsigned int length) {
         std::string topic(_topic);
 
         auto result = callbacks.find(topic);
@@ -41,7 +41,7 @@ void core::Mqtt::connect(const char* host, const char* id, uint16 port) {
         if (result == callbacks.end()) {
             Serial.printf("[mqtt] callback not found for %s\n", _topic);
         }
-        });
+    });
 
     client.connect(id);
 
@@ -68,4 +68,3 @@ void core::Mqtt::loop() {
 
     client.loop();
 };
-

@@ -25,7 +25,7 @@ namespace core {
 
         httpUpdate.rebootOnUpdate(false);
         httpUpdate.closeConnectionsOnUpdate(false);
-        httpUpdate.setMD5(md5);
+        httpUpdate.setMD5sum(md5);
 
         Serial.printf("[firmware] md5 checksum: %s\n", md5);
 

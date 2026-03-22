@@ -1,7 +1,7 @@
 #include <core/event-bus/event-bus.h>
 
-void core::EventBus::on(const char* event, Handler handler) {
-    listeners[std::string(event)].push_back(std::move(handler));
+void core::EventBus::on(const char* event, EventHandler handler) {
+    listeners[std::string(event)].push_back(handler);
 }
 
 void core::EventBus::emit(const char* event, const char* data) {
@@ -11,7 +11,7 @@ void core::EventBus::emit(const char* event, const char* data) {
         return;
     }
 
-    for (auto& handler : result->second) {
+    for (auto handler : result->second) {
         handler(data);
     }
 }

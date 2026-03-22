@@ -1,23 +1,25 @@
 #include <core/message-bus/message-bus.h>
 
+namespace {
+    constexpr const char* TOPIC_FORMAT = "controllers/%s/%s";
+    constexpr size_t TOPIC_BUFFER_SIZE = 128;
+}
+
 core::MessageBus::MessageBus(Mqtt& mqtt, const char* controllerId)
     : mqtt(mqtt), controllerId(controllerId) {}
 
 void core::MessageBus::buildTopic(char* buffer, size_t bufferSize, const char* channel) {
-    snprintf(buffer, bufferSize, "controllers/%s/%s", controllerId, channel);
+    snprintf(buffer, bufferSize, TOPIC_FORMAT, controllerId, channel);
 }
 
 void core::MessageBus::publish(const char* channel, const char* payload) {
-    char topic[128];
+    char topic[TOPIC_BUFFER_SIZE];
     buildTopic(topic, sizeof(topic), channel);
     mqtt.publish(topic, payload);
 }
 
-void core::MessageBus::subscribe(const char* channel, Handler handler) {
-    char topic[128];
+void core::MessageBus::subscribe(const char* channel, MqttCallback handler) {
+    char topic[TOPIC_BUFFER_SIZE];
     buildTopic(topic, sizeof(topic), channel);
-
-    mqtt.subscribe(topic, [handler](byte* payload, unsigned int length) {
-        handler(payload, length);
-    });
+    mqtt.subscribe(topic, handler);
 }

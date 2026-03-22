@@ -6,12 +6,12 @@
 #include <PubSubClient.h>
 
 namespace core {
-    typedef void (*mqttCallback)(byte* payload, unsigned int length);
+    typedef void (*MqttCallback)(byte* payload, unsigned int length);
 
     class Mqtt {
         private:
             PubSubClient client;
-            std::map<std::string, mqttCallback> callbacks;
+            std::map<std::string, MqttCallback> callbacks;
             char* _host;
             char* _id;
 
@@ -20,7 +20,7 @@ namespace core {
         public:
             Mqtt(Client& networkClient);
 
-            void subscribe(const char* topic, mqttCallback callback);
+            void subscribe(const char* topic, MqttCallback callback);
             void connect(const char* host, const char* id, uint16 port = 8883);
             void publish(const char* topic, const char* payload = "{}");
             void loop();

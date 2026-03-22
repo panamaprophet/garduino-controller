@@ -1,10 +1,14 @@
 #include <modules/sensor/sensor.h>
 
-modules::Sensor::Sensor(int _pin) {
-    pin = _pin;
+namespace {
+    constexpr const char* EVENT_TEMPERATURE_HIGH = "temperature:high";
+}
+
+modules::Sensor::Sensor(core::EventBus& eventBus, int pin)
+    : Module(eventBus), pin(pin) {
     sensor.setup(pin);
 
-    sensor.onData([&](float newHumidity, float newTemperature) {
+    sensor.onData([this](float newHumidity, float newTemperature) {
         if (newTemperature < temperature) {
             stabilityFactor--;
         }
@@ -19,14 +23,14 @@ modules::Sensor::Sensor(int _pin) {
 
         if (newTemperature >= thresholdTemperature && newTemperature > temperature) {
             Serial.printf("[module:sensor] threshold reached\n");
-            onThresholdCallback(newTemperature);
+            this->eventBus.emit(EVENT_TEMPERATURE_HIGH);
         }
 
         humidity = newHumidity;
         temperature = newTemperature;
     });
 
-    sensor.onError([&](uint8_t error) {
+    sensor.onError([this](uint8_t error) {
         retryCounter++;
 
         if (retryCounter <= retryCount) {
@@ -36,18 +40,30 @@ modules::Sensor::Sensor(int _pin) {
             Serial.printf("[module:sensor] reading error = %s\n", sensor.getError());
         }
     });
-};
+}
 
-void modules::Sensor::run() {
-    Serial.printf("[module:sensor] run. polling interval set to %d seconds\n", interval / 1000);
+const char* modules::Sensor::name() const {
+    return "sensor";
+}
 
-    ticker.attach_ms(interval, [&]() {
+void modules::Sensor::apply(const JsonObject& config) {
+    if (config["thresholdTemperature"].is<unsigned int>()) {
+        thresholdTemperature = config["thresholdTemperature"].as<unsigned int>();
+    }
+
+    Serial.printf("[module:sensor] started. polling interval = %d seconds\n", interval / 1000);
+
+    ticker.attach_ms(interval, [this]() {
         sensor.read();
     });
 
     sensor.read();
-};
+}
 
-void modules::Sensor::onThreshold(thresholdCallback callback) {
-    onThresholdCallback = callback;
+JsonDocument modules::Sensor::getStatus() const {
+    JsonDocument status;
+    status["temperature"] = temperature;
+    status["humidity"] = humidity;
+    status["stabilityFactor"] = stabilityFactor;
+    return status;
 }

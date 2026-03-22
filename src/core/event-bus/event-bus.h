@@ -1,19 +1,18 @@
 #pragma once
 
-#include <functional>
 #include <map>
 #include <string>
 #include <vector>
 
 namespace core {
+    using EventHandler = void (*)(const char* data);
+
     class EventBus {
         public:
-            using Handler = std::function<void(const char* data)>;
-
-            void on(const char* event, Handler handler);
+            void on(const char* event, EventHandler handler);
             void emit(const char* event, const char* data = nullptr);
 
         private:
-            std::map<std::string, std::vector<Handler>> listeners;
+            std::map<std::string, std::vector<EventHandler>> listeners;
     };
 }

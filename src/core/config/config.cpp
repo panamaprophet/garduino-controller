@@ -1,9 +1,13 @@
 #include <core/config/config.h>
 
+namespace {
+    constexpr const char* CONFIG_PATH = "config.json";
+}
+
 core::Config::Config() {
     LittleFS.begin();
 
-    auto file = LittleFS.open("config.json", "r");
+    auto file = LittleFS.open(CONFIG_PATH, "r");
     auto size = file.size();
 
     char config[size];

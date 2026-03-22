@@ -3,34 +3,29 @@
 #include <Arduino.h>
 #include <Ticker.h>
 #include <DHT.h>
-#include <stdint.h>
-#include <algorithm>
+#include <modules/module.h>
 
 namespace modules {
-    typedef void (*thresholdCallback)(float temperature);
+    class Sensor : public Module {
+        public:
+            Sensor(core::EventBus& eventBus, int pin);
 
-    class Sensor {
+            const char* name() const override;
+            void apply(const JsonObject& config) override;
+            JsonDocument getStatus() const override;
+
         private:
+            unsigned int pin;
             Ticker ticker;
             DHT11 sensor;
+
             unsigned int retryCount = 5;
             unsigned int retryCounter = 0;
             unsigned int interval = 30 * 1000;
-            thresholdCallback onThresholdCallback;
+            unsigned int thresholdTemperature = 0;
 
-        public:
-            unsigned int pin;
-
-            unsigned int thresholdTemperature;
-
-            float temperature;
-            float humidity;
-
+            float temperature = 0;
+            float humidity = 0;
             int stabilityFactor = 0;
-
-            Sensor(int _pin);
-
-            void run();
-            void onThreshold(thresholdCallback callback);
     };
-};
+}

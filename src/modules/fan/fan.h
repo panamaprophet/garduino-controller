@@ -8,11 +8,11 @@
 namespace modules {
     class Fan : public Module {
         public:
-            Fan(int pin);
+            Fan(core::EventBus& eventBus, int pin);
 
             const char* name() const override;
-            void start(const JsonObject& config, core::Context& context) override;
-            void getStatus(JsonObject& status) const override;
+            void apply(const JsonObject& config) override;
+            JsonDocument getStatus() const override;
 
             void stepUp();
             void reset();

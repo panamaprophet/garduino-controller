@@ -1,5 +1,13 @@
 #include <core/network/network.h>
 
+namespace {
+    constexpr const char* ROOT_CERT_PATH = "root.crt";
+    constexpr const char* CLIENT_CERT_PATH = "controller.cert.pem";
+    constexpr const char* PRIVATE_KEY_PATH = "controller.private.key";
+    constexpr unsigned int CONNECTION_TIMEOUT_MS = 15000;
+    constexpr unsigned int CONNECTION_POLL_MS = 500;
+}
+
 core::Network::Network() {
     LittleFS.begin();
     loadRootCertificate();
@@ -9,7 +17,7 @@ core::Network::Network() {
 void core::Network::loadRootCertificate() {
     Serial.printf("[network] loading root certificate...\n");
 
-    auto file = LittleFS.open("root.crt", "r");
+    auto file = LittleFS.open(ROOT_CERT_PATH, "r");
     auto size = file.size();
     auto buffer = std::make_unique<char[]>(size);
 
@@ -23,14 +31,14 @@ void core::Network::loadRootCertificate() {
 void core::Network::loadClientCertificate() {
     Serial.printf("[network] loading client certificate...\n");
 
-    auto certFile = LittleFS.open("controller.cert.pem", "r");
+    auto certFile = LittleFS.open(CLIENT_CERT_PATH, "r");
     auto certSize = certFile.size();
     auto certBuffer = std::make_unique<char[]>(certSize);
 
     certFile.readBytes(certBuffer.get(), certSize);
     certFile.close();
 
-    auto keyFile = LittleFS.open("controller.private.key", "r");
+    auto keyFile = LittleFS.open(PRIVATE_KEY_PATH, "r");
     auto keySize = keyFile.size();
     auto keyBuffer = std::make_unique<char[]>(keySize);
 
@@ -52,8 +60,8 @@ void core::Network::connect(const char* ssid, const char* password) {
 
     Serial.printf("[network] connecting ");
 
-    unsigned int timeout = 15000;
-    unsigned int step = 500;
+    unsigned int timeout = CONNECTION_TIMEOUT_MS;
+    unsigned int step = CONNECTION_POLL_MS;
     
     while (WiFi.status() != WL_CONNECTED) {
         Serial.printf(".");
