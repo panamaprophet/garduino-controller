@@ -1,4 +1,5 @@
 #include <core/mqtt/mqtt.h>
+#include <core/logger/logger.h>
 
 core::Mqtt::Mqtt(Client& networkClient) {
     client.setClient(networkClient);
@@ -11,7 +12,7 @@ void core::Mqtt::resubscribe() {
 }
 
 void core::Mqtt::subscribe(const char* topic, MqttCallback callback) {
-    Serial.printf("[mqtt] subscribing to %s\n", topic);
+    Logger::info("mqtt", "subscribing to %s", topic);
 
     callbacks[std::string(topic)] = callback;
     client.subscribe(topic);
@@ -21,7 +22,7 @@ void core::Mqtt::connect(const char* host, const char* id, uint16 port) {
     _host = strdup(host);
     _id = strdup(id);
 
-    Serial.printf("[mqtt] connecting ... ");
+    Logger::info("mqtt", "connecting...");
 
     client.setServer(host, port);
 
@@ -32,37 +33,36 @@ void core::Mqtt::connect(const char* host, const char* id, uint16 port) {
 
         payload[length] = '\0';
 
-        Serial.printf("[mqtt] message from %s: %s\n", _topic, payload);
+        Logger::info("mqtt", "%s: %s", _topic, payload);
 
         if (result != callbacks.end()) {
             result->second(payload, length);
+            return;
         }
 
-        if (result == callbacks.end()) {
-            Serial.printf("[mqtt] callback not found for %s\n", _topic);
-        }
+        Logger::error("mqtt", "no handler for %s", _topic);
     });
 
     client.connect(id);
 
-    Serial.printf("%s\n", client.connected() ? "success" : "fail");
-
     if (!client.connected()) {
-        Serial.printf("[mqtt] connection failed. error code = %d\n", client.state());
+        Logger::error("mqtt", "connection failed (rc=%d)", client.state());
         return;
     }
+
+    Logger::info("mqtt", "connected");
 
     resubscribe();
 };
 
 void core::Mqtt::publish(const char* topic, const char* payload) {
-    Serial.printf("[mqtt] publishing to %s: %s\n", topic, payload);
+    Logger::info("mqtt", "publish %s: %s", topic, payload);
     client.publish(topic, payload);
 };
 
 void core::Mqtt::loop() {
     if (!client.connected()) {
-        Serial.printf("[mqtt] connection lost. attempting to reconnect");
+        Logger::error("mqtt", "connection lost, reconnecting...");
         connect(_host, _id);
     }
 

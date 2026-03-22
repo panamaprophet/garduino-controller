@@ -1,4 +1,5 @@
 #include <modules/fan/fan.h>
+#include <core/logger/logger.h>
 
 namespace {
     constexpr unsigned int PWM_FREQUENCY = 150;
@@ -20,8 +21,6 @@ void modules::Fan::apply(const JsonObject& config) {
     }
 
     setSpeed(defaultSpeed);
-
-    Serial.printf("[module:fan] started with speed %d\n", defaultSpeed);
 }
 
 JsonDocument modules::Fan::getStatus() const {
@@ -33,7 +32,7 @@ JsonDocument modules::Fan::getStatus() const {
 void modules::Fan::setSpeed(unsigned int speed) {
     currentSpeed = std::min(std::max(minSpeed, speed), maxSpeed);
 
-    Serial.printf("[module:fan] set speed to %d (requested %d)\n", currentSpeed, speed);
+    core::Logger::info("fan", "speed %d (requested %d)", currentSpeed, speed);
 
     analogWriteFreq(PWM_FREQUENCY);
     analogWrite(pin, currentSpeed);

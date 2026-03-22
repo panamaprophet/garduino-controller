@@ -39,29 +39,42 @@ void publishStatus() {
     messageBus.publish(EVENTS_CHANNEL, buffer);
 }
 
+JsonDocument adaptConfig(const JsonObject& raw) {
+    JsonDocument config;
+
+    config["fan"]["defaultSpeed"] = raw["fanSpeed"];
+    config["light"]["isOn"] = raw["isOn"];
+    config["light"]["switchIn"] = raw["switchIn"];
+    config["light"]["duration"] = raw["duration"];
+    config["sensor"]["thresholdTemperature"] = raw["thresholdTemperature"];
+
+    return config;
+}
+
 void onConfigReceived(byte* payload, unsigned int length) {
-    Serial.printf("[handler:config] configuration received\n");
+    core::Logger::info("config", "configuration received");
 
     JsonDocument document;
     DeserializationError error = deserializeJson(document, payload, length);
 
     if (error) {
-        Serial.printf("[handler:config] invalid json: %s\n", error.c_str());
+        core::Logger::error("config", "invalid json: %s", error.c_str());
         return;
     }
 
-    registry.apply(document.as<JsonObject>());
+    auto config = adaptConfig(document.as<JsonObject>());
+    registry.apply(config.as<JsonObject>());
 
     messageBus.publish(EVENTS_CHANNEL, R"({"event":"run"})");
 }
 
 void onStatusRequested(byte* payload, unsigned int length) {
-    Serial.printf("[handler:status] status requested\n");
+    core::Logger::info("status", "status requested");
     publishStatus();
 }
 
 void onRebootRequested(byte* payload, unsigned int length) {
-    Serial.printf("[handler:reboot] reboot requested\n");
+    core::Logger::info("reboot", "reboot requested");
 
     messageBus.publish(EVENTS_CHANNEL, R"({"event":"reboot"})");
 
@@ -69,13 +82,13 @@ void onRebootRequested(byte* payload, unsigned int length) {
 }
 
 void onFirmwareUpdateRequested(byte* payload, unsigned int length) {
-    Serial.printf("[handler:firmware] update received\n");
+    core::Logger::info("firmware", "update requested");
 
     JsonDocument document;
     DeserializationError error = deserializeJson(document, payload, length);
 
     if (error) {
-        Serial.printf("[handler:firmware] invalid json: %s\n", error.c_str());
+        core::Logger::error("firmware", "invalid json: %s", error.c_str());
         return;
     }
 
@@ -87,7 +100,7 @@ void onFirmwareUpdateRequested(byte* payload, unsigned int length) {
 
 
 void setup() {
-    Serial.begin(115200);
+    core::Logger::begin();
 
     network.connect(config.ssid, config.password);
     timer.sync();
@@ -95,20 +108,20 @@ void setup() {
 
     firmware.onStart([]() {
         messageBus.publish(EVENTS_CHANNEL, R"({"event":"firmware:update:started"})");
-        Serial.printf("[firmware] update started\n");
+        core::Logger::info("firmware", "update started");
     });
 
     firmware.onSuccess([]() {
         messageBus.publish(EVENTS_CHANNEL, R"({"event":"firmware:update:success"})");
         scheduler.scheduleOnce(REBOOT_DELAY_MS, []() { ESP.restart(); });
-        Serial.printf("[firmware] update success\n");
+        core::Logger::info("firmware", "update success, rebooting...");
     });
 
     firmware.onError([](const char* errorMessage) {
         char message[256];
         snprintf(message, sizeof(message), R"({"event":"firmware:update:error","message":"%s"})", errorMessage);
         messageBus.publish(EVENTS_CHANNEL, message);
-        Serial.printf("[firmware] update error: %s\n", errorMessage);
+        core::Logger::error("firmware", "update failed: %s", errorMessage);
     });
 
     eventBus.on(EVENT_TEMPERATURE_HIGH, [](const char*) {

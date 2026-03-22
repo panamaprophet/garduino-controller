@@ -1,4 +1,5 @@
 #include <core/network/network.h>
+#include <core/logger/logger.h>
 
 namespace {
     constexpr const char* ROOT_CERT_PATH = "root.crt";
@@ -15,7 +16,7 @@ core::Network::Network() {
 };
 
 void core::Network::loadRootCertificate() {
-    Serial.printf("[network] loading root certificate...\n");
+    Logger::info("network", "loading root certificate");
 
     auto file = LittleFS.open(ROOT_CERT_PATH, "r");
     auto size = file.size();
@@ -29,7 +30,7 @@ void core::Network::loadRootCertificate() {
 };
 
 void core::Network::loadClientCertificate() {
-    Serial.printf("[network] loading client certificate...\n");
+    Logger::info("network", "loading client certificate");
 
     auto certFile = LittleFS.open(CLIENT_CERT_PATH, "r");
     auto certSize = certFile.size();
@@ -53,27 +54,22 @@ void core::Network::loadClientCertificate() {
 
 void core::Network::connect(const char* ssid, const char* password) {
     WiFi.setAutoReconnect(true);
-
     WiFi.mode(WIFI_STA);
-
     WiFi.begin(ssid, password);
 
-    Serial.printf("[network] connecting ");
+    Logger::info("network", "connecting...");
 
-    unsigned int timeout = CONNECTION_TIMEOUT_MS;
-    unsigned int step = CONNECTION_POLL_MS;
-    
+    unsigned int elapsed = 0;
+
     while (WiFi.status() != WL_CONNECTED) {
-        Serial.printf(".");
+        delay(CONNECTION_POLL_MS);
+        elapsed += CONNECTION_POLL_MS;
 
-        delay(step);
-        timeout -= step;
-
-        if (timeout <= 0) {
-            Serial.printf(" timeout");
+        if (elapsed >= CONNECTION_TIMEOUT_MS) {
+            Logger::error("network", "connection timeout");
+            return;
         }
     }
 
-    Serial.printf(" %s\n", WiFi.status() == WL_CONNECTED ? "success" : "fail");
-    Serial.printf("[network] ip = %s\n", WiFi.localIP().toString().c_str());
+    Logger::info("network", "connected (%s)", WiFi.localIP().toString().c_str());
 };

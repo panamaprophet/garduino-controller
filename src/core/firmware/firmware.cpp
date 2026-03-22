@@ -1,4 +1,5 @@
 #include <core/firmware/firmware.h>
+#include <core/logger/logger.h>
 #include <ESP8266httpUpdate.h>
 
 namespace core {
@@ -17,7 +18,7 @@ namespace core {
     }
 
     void Firmware::update(const char* url, const char* md5) {
-        Serial.printf("[firmware] starting update using %s\n", url);
+        Logger::info("firmware", "starting update from %s", url);
 
         if (_onStart) {
             _onStart();
@@ -27,31 +28,31 @@ namespace core {
         httpUpdate.closeConnectionsOnUpdate(false);
         httpUpdate.setMD5sum(md5);
 
-        Serial.printf("[firmware] md5 checksum: %s\n", md5);
+        Logger::info("firmware", "md5: %s", md5);
 
         httpUpdate.onProgress([](unsigned int progress, unsigned int total) {
-            auto percentage = (progress * 100) / total;
-
-            Serial.printf("\r[firmware] update: %u%%", percentage);
+            Serial.printf("\r  updating... %u%%  ", (progress * 100) / total);
         });
 
         auto result = httpUpdate.update(_client, url);
         auto lastError = httpUpdate.getLastErrorString();
-        auto isOk = result == HTTPUpdateResult::HTTP_UPDATE_OK;
 
-        Serial.printf("[firmware] update result: %s\n", isOk ? "success" : lastError.c_str());
+        Serial.println();
 
         if (result == HTTP_UPDATE_OK) {
+            Logger::info("firmware", "update complete");
             _onSuccess();
             return;
         }
 
         if (result == HTTP_UPDATE_NO_UPDATES) {
+            Logger::error("firmware", "no update available");
             _onError("no update");
             return;
         }
 
         if (result == HTTP_UPDATE_FAILED) {
+            Logger::error("firmware", "update failed: %s", lastError.c_str());
             _onError(lastError.c_str());
         }
     }

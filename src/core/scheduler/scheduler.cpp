@@ -1,7 +1,8 @@
 #include <core/scheduler/scheduler.h>
+#include <core/logger/logger.h>
 
 void core::Scheduler::schedule(unsigned long interval, SchedulerCallback callback, bool repeat) {
-    Serial.printf("[scheduler] scheduling %s call every %lu ms\n", repeat ? "recurrent" : "one-shot", interval);
+    Logger::info("scheduler", "%s call every %lu ms", repeat ? "repeating" : "one-shot", interval);
 
     for (auto ticker = tickers.begin(); ticker != tickers.end();) {
         if (!(*ticker)->active()) {

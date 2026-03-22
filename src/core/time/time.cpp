@@ -1,4 +1,5 @@
 #include <core/time/time.h>
+#include <core/logger/logger.h>
 
 namespace {
     constexpr const char* NTP_PRIMARY = "pool.ntp.org";
@@ -7,7 +8,7 @@ namespace {
 }
 
 time_t core::Time::sync() {
-    Serial.printf("[time] sync ");
+    Logger::info("time", "syncing...");
 
     configTime(0, 0, NTP_PRIMARY, NTP_SECONDARY);
 
@@ -15,17 +16,16 @@ time_t core::Time::sync() {
 
     while (now < MIN_VALID_TIME) {
         delay(10);
-        Serial.printf(".");
         now = time(nullptr);
     }
 
-    Serial.printf(" success\n");
-
     struct tm timeinfo;
-
     gmtime_r(&now, &timeinfo);
 
-    Serial.printf("[time] current time = %s", asctime(&timeinfo));
+    char formatted[32];
+    strftime(formatted, sizeof(formatted), "%Y-%m-%d %H:%M:%S", &timeinfo);
+
+    Logger::info("time", "synced (%s)", formatted);
 
     return now;
 };

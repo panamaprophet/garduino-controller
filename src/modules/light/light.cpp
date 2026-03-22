@@ -1,4 +1,5 @@
 #include <modules/light/light.h>
+#include <core/logger/logger.h>
 
 namespace {
     constexpr const char* EVENT_LIGHT_SWITCH = "light:switch";
@@ -21,10 +22,7 @@ void modules::Light::apply(const JsonObject& config) {
     duration = config["duration"].as<unsigned long>();
     switchIn = config["switchIn"].as<unsigned long>();
 
-    Serial.printf(
-        "[module:light] started. light is %s. will switch in %lu hours (%lu ms).\n",
-        isOn ? "on" : "off", switchIn / 1000 / 60 / 60, switchIn
-    );
+    core::Logger::info("light", "started %s, switching in %lu h", isOn ? "on" : "off", switchIn / 1000 / 60 / 60);
 
     ticker.attach_ms(checkInterval, [this]() {
         switchIn -= checkInterval;
@@ -36,10 +34,7 @@ void modules::Light::apply(const JsonObject& config) {
         isOn = !isOn;
         switchIn = isOn ? duration : MS_PER_DAY - duration;
 
-        Serial.printf(
-            "[module:light] switch. light is %s. will switch in %lu hours (%lu ms).\n",
-            isOn ? "on" : "off", switchIn / 1000 / 60 / 60, switchIn
-        );
+        core::Logger::info("light", "switched %s, next in %lu h", isOn ? "on" : "off", switchIn / 1000 / 60 / 60);
 
         analogWriteFreq(PWM_FREQUENCY);
         analogWrite(pin, isOn ? PIN_ON : PIN_OFF);

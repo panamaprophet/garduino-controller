@@ -1,4 +1,5 @@
 #include <modules/sensor/sensor.h>
+#include <core/logger/logger.h>
 
 namespace {
     constexpr const char* EVENT_TEMPERATURE_HIGH = "temperature:high";
@@ -22,7 +23,7 @@ modules::Sensor::Sensor(core::EventBus& eventBus, int pin)
         }
 
         if (newTemperature >= thresholdTemperature && newTemperature > temperature) {
-            Serial.printf("[module:sensor] threshold reached\n");
+            core::Logger::info("sensor", "temperature threshold reached");
             this->eventBus.emit(EVENT_TEMPERATURE_HIGH);
         }
 
@@ -37,7 +38,7 @@ modules::Sensor::Sensor(core::EventBus& eventBus, int pin)
             sensor.read();
         } else {
             retryCounter = 0;
-            Serial.printf("[module:sensor] reading error = %s\n", sensor.getError());
+            core::Logger::error("sensor", "read failed: %s", sensor.getError());
         }
     });
 }
@@ -51,7 +52,7 @@ void modules::Sensor::apply(const JsonObject& config) {
         thresholdTemperature = config["thresholdTemperature"].as<unsigned int>();
     }
 
-    Serial.printf("[module:sensor] started. polling interval = %d seconds\n", interval / 1000);
+    core::Logger::info("sensor", "started, polling every %d s", interval / 1000);
 
     ticker.attach_ms(interval, [this]() {
         sensor.read();
