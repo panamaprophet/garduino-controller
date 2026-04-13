@@ -56,6 +56,11 @@ void core::Mqtt::connect(const char* host, const char* id, uint16 port) {
 };
 
 void core::Mqtt::publish(const char* topic, const char* payload) {
+    if (!client.connected()) {
+        Logger::error("mqtt", "connection lost, reconnecting...");
+        connect(_host, _id);
+    }
+
     Logger::info("mqtt", "publish %s: %s", topic, payload);
     client.publish(topic, payload);
 };
