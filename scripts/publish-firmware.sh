@@ -30,15 +30,9 @@ check_binary() {
 
 get_firmware_name() {
     local date=$(date +%Y%m%d)
-    local hash
+    local git_hash=$(git describe --tags --dirty --always)
 
-    if command -v md5 &> /dev/null; then
-        hash=$(md5 -q "$BINARY_PATH")
-    else
-        hash=$(md5sum "$BINARY_PATH" | cut -d' ' -f1)
-    fi
-
-    echo "firmware-${date}-${hash:0:8}.bin"
+    echo "garduino-firmware.${git_hash}.${date}.bin" # e.g. garduino-firmware.gabcdef0.20240601.bin
 }
 
 publish_firmware() {

@@ -5,6 +5,10 @@
 #include <ESP8266HTTPUpdate.h>
 #include <functional>
 
+#ifndef FIRMWARE_VERSION
+#define FIRMWARE_VERSION "unknown"
+#endif
+
 namespace core {
     class Firmware {
         private:
@@ -21,6 +25,8 @@ namespace core {
 
         public:
             Firmware(WiFiClient& client);
+
+            static constexpr const char* version = FIRMWARE_VERSION;
 
             void onStart(StartCallback callback);
             void onSuccess(SuccessCallback callback);

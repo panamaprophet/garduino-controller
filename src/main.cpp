@@ -31,6 +31,7 @@ core::ModuleRegistry registry({&fan, &light, &sensor});
 
 void publishStatus() {
     auto status = registry.getStatus();
+
     status["event"] = "update";
 
     char buffer[256];
@@ -101,6 +102,7 @@ void onFirmwareUpdateRequested(byte* payload, unsigned int length) {
 
 void setup() {
     core::Logger::begin();
+    core::Logger::info("firmware", "version: %s", core::Firmware::version);
 
     network.connect(config.ssid, config.password);
     timer.sync();
