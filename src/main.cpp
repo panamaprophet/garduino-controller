@@ -35,6 +35,7 @@ void publishStatus() {
     status["event"] = "update";
 
     char buffer[256];
+
     serializeJson(status, buffer, sizeof(buffer));
 
     messageBus.publish(EVENTS_CHANNEL, buffer);
@@ -82,6 +83,16 @@ void onRebootRequested(byte* payload, unsigned int length) {
     scheduler.scheduleOnce(REBOOT_DELAY_MS, []() { ESP.restart(); });
 }
 
+void onFirmwareVersionRequested(byte* payload, unsigned int length) {
+    core::Logger::info("firmware", "version requested");
+
+    char message[256];
+
+    snprintf(message, sizeof(message), R"({"version":"%s"})", core::Firmware::version);
+
+    messageBus.publish("firmware/version/pub", message);
+}
+
 void onFirmwareUpdateRequested(byte* payload, unsigned int length) {
     core::Logger::info("firmware", "update requested");
 
@@ -99,32 +110,38 @@ void onFirmwareUpdateRequested(byte* payload, unsigned int length) {
     firmware.update(url, md5);
 }
 
+void onFirmwareUpdateStarted() {
+    messageBus.publish(EVENTS_CHANNEL, R"({"event":"firmware:update:started"})");
+    core::Logger::info("firmware", "update started");
+}
+
+void onFirmwareUpdateSuccess() {
+    messageBus.publish(EVENTS_CHANNEL, R"({"event":"firmware:update:success"})");
+    core::Logger::info("firmware", "update success, rebooting...");
+    scheduler.scheduleOnce(REBOOT_DELAY_MS, []() { ESP.restart(); });
+}
+
+void onFirmwareUpdateError(const char* errorMessage) {
+    char message[256];
+    snprintf(message, sizeof(message), R"({"event":"firmware:update:error","message":"%s"})", errorMessage);
+    messageBus.publish(EVENTS_CHANNEL, message);
+    core::Logger::error("firmware", "update failed: %s", errorMessage);
+}
+
 
 void setup() {
     core::Logger::begin();
     core::Logger::info("firmware", "version: %s", core::Firmware::version);
 
     network.connect(config.ssid, config.password);
+
     timer.sync();
+
     mqtt.connect(config.host, config.controllerId);
 
-    firmware.onStart([]() {
-        messageBus.publish(EVENTS_CHANNEL, R"({"event":"firmware:update:started"})");
-        core::Logger::info("firmware", "update started");
-    });
-
-    firmware.onSuccess([]() {
-        messageBus.publish(EVENTS_CHANNEL, R"({"event":"firmware:update:success"})");
-        scheduler.scheduleOnce(REBOOT_DELAY_MS, []() { ESP.restart(); });
-        core::Logger::info("firmware", "update success, rebooting...");
-    });
-
-    firmware.onError([](const char* errorMessage) {
-        char message[256];
-        snprintf(message, sizeof(message), R"({"event":"firmware:update:error","message":"%s"})", errorMessage);
-        messageBus.publish(EVENTS_CHANNEL, message);
-        core::Logger::error("firmware", "update failed: %s", errorMessage);
-    });
+    firmware.onStart(onFirmwareUpdateStarted);
+    firmware.onSuccess(onFirmwareUpdateSuccess);
+    firmware.onError(onFirmwareUpdateError);
 
     eventBus.on(EVENT_TEMPERATURE_HIGH, [](const char*) {
         fan.stepUp();
@@ -132,6 +149,7 @@ void setup() {
 
     eventBus.on(EVENT_LIGHT_SWITCH, [](const char* data) {
         char message[128];
+
         snprintf(message, sizeof(message), R"({"event":"light:switch","isOn":%s})", data);
         messageBus.publish(EVENTS_CHANNEL, message);
 
@@ -144,6 +162,7 @@ void setup() {
     messageBus.subscribe("status/sub", onStatusRequested);
     messageBus.subscribe("reboot/sub", onRebootRequested);
     messageBus.subscribe("firmware/update/sub", onFirmwareUpdateRequested);
+    messageBus.subscribe("firmware/version/sub", onFirmwareVersionRequested);
 
     scheduler.schedule(TELEMETRY_INTERVAL_MS, publishStatus);
 
