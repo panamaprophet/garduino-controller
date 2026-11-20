@@ -1,22 +1,21 @@
 import subprocess
-from datetime import datetime
 
 Import("env")
 
-cmd = ["git", "describe", "--tags", "--dirty", "--always"]
+cmd = ["git", "describe", "--tags", "--match", "v[0-9]*", "--dirty", "--always"]
 cwd = env.Dir("#").abspath
 
-print (f"✓ [firmware version] directory: {cwd}")
+print(f"✓ [firmware version] directory: {cwd}")
 
-today = datetime. today()
-formatted_date = today.strftime("%Y%m%d")
+try:
+    described = subprocess.check_output(cmd, cwd=cwd, stderr=subprocess.DEVNULL).decode().strip()
+except (subprocess.CalledProcessError, FileNotFoundError):
+    described = "unknown"
 
-prefix = "garduino-firmware"
-version = subprocess.check_output(cmd, cwd=cwd, stderr=subprocess.DEVNULL)
-formatted_version = "%s.%s.%s" % (prefix, version.decode().strip(), formatted_date)
+version = described[1:] if described.startswith("v") else f"0.0.0-{described}"
 
-print (f"✓ [firmware version] version: {formatted_version}")
+print(f"✓ [firmware version] version: {version}")
 
 env.Append(
-    BUILD_FLAGS=["-D FIRMWARE_VERSION=\\\"%s\\\"" % formatted_version]
+    BUILD_FLAGS=["-D FIRMWARE_VERSION=\\\"%s\\\"" % version]
 )
