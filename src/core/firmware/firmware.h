@@ -2,7 +2,7 @@
 
 #include <Arduino.h>
 #include <WiFiClient.h>
-#include <ESP8266HTTPUpdate.h>
+#include <ESP8266httpUpdate.h>
 #include <functional>
 
 #ifndef FIRMWARE_VERSION
