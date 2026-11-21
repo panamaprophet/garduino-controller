@@ -65,7 +65,7 @@ void publishChange(const char* name) {
 void onModuleChanged(const char* name) {
     publishChange(name);
 
-    bool isLightOff = strcmp(name, light.name()) == 0 && !light.getStatus()["isOn"].as<bool>();
+    bool isLightOff = strcmp(name, light.name()) == 0 && !light.isOn();
 
     if (isLightOff) {
         scheduler.scheduleOnce(FAN_RESET_DELAY_MS, []() { fan.reset(); });

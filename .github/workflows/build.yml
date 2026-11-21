@@ -24,5 +24,8 @@ jobs:
             - name: Install PlatformIO
               run: pip install platformio
 
+            - name: Test
+              run: pio test -e native
+
             - name: Build
               run: pio run -e nodemcuv2
