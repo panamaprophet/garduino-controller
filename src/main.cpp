@@ -42,6 +42,22 @@ void publishTelemetry() {
     publishEvent("telemetry", registry.getStatus());
 }
 
+void publishBoot() {
+    JsonDocument payload;
+
+    payload["firmwareVersion"] = core::Firmware::version;
+    payload["protocolVersion"] = core::MessageBus::protocolVersion;
+    payload["resetReason"] = ESP.getResetReason();
+
+    auto modules = payload["modules"].to<JsonArray>();
+
+    for (auto* name : registry.names()) {
+        modules.add(name);
+    }
+
+    publishEvent("boot", payload);
+}
+
 void publishFirmwareUpdate(const char* status, const char* message = nullptr) {
     JsonDocument payload;
 
@@ -180,6 +196,8 @@ void setup() {
 
     JsonDocument request;
     messageBus.publish(CHANNEL_SETTINGS_REQUEST, request);
+
+    publishBoot();
 }
 
 void loop() {

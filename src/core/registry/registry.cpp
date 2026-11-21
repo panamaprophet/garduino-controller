@@ -35,3 +35,13 @@ JsonDocument core::ModuleRegistry::getStatus(std::initializer_list<const char*> 
 
     return status;
 }
+
+std::vector<const char*> core::ModuleRegistry::names() const {
+    std::vector<const char*> result;
+
+    for (auto* module : modules) {
+        result.push_back(module->name());
+    }
+
+    return result;
+}

@@ -12,6 +12,7 @@ namespace core {
 
             void apply(const JsonObject& config);
             JsonDocument getStatus(std::initializer_list<const char*> names = {}) const;
+            std::vector<const char*> names() const;
 
         private:
             std::vector<modules::Module*> modules;
