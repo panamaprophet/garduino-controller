@@ -4,9 +4,14 @@
 #include <modules/modules.h>
 
 namespace {
-    constexpr const char* EVENTS_CHANNEL = "events/pub";
+    constexpr const char* CHANNEL_TELEMETRY = "telemetry";
+    constexpr const char* CHANNEL_SETTINGS = "settings";
+    constexpr const char* CHANNEL_SETTINGS_REQUEST = "settings/get";
+    constexpr const char* CHANNEL_COMMANDS = "commands";
+
     constexpr const char* EVENT_TEMPERATURE_HIGH = "temperature:high";
     constexpr const char* EVENT_LIGHT_SWITCH = "light:switch";
+
     constexpr unsigned long REBOOT_DELAY_MS = 5 * 1000;
     constexpr unsigned long FAN_RESET_DELAY_MS = 60 * 1000;
     constexpr unsigned long TELEMETRY_INTERVAL_MS = 10 * 60 * 1000;
@@ -29,103 +34,105 @@ modules::Sensor sensor(eventBus, config.pinSensor);
 core::ModuleRegistry registry({&fan, &light, &sensor});
 
 
-void publishStatus() {
-    auto status = registry.getStatus();
-
-    status["event"] = "update";
-
-    char buffer[256];
-
-    serializeJson(status, buffer, sizeof(buffer));
-
-    messageBus.publish(EVENTS_CHANNEL, buffer);
+void publishEvent(const char* type, JsonDocument payload = JsonDocument()) {
+    payload["type"] = type;
+    messageBus.publish(CHANNEL_TELEMETRY, payload);
 }
 
-JsonDocument adaptConfig(const JsonObject& raw) {
-    JsonDocument config;
-
-    config["fan"]["defaultSpeed"] = raw["fanSpeed"];
-    config["light"]["isOn"] = raw["isOn"];
-    config["light"]["switchIn"] = raw["switchIn"];
-    config["light"]["duration"] = raw["duration"];
-    config["sensor"]["thresholdTemperature"] = raw["thresholdTemperature"];
-
-    return config;
+void publishTelemetry() {
+    publishEvent("telemetry", registry.getStatus());
 }
 
-void onConfigReceived(byte* payload, unsigned int length) {
-    core::Logger::info("config", "configuration received");
+void publishFirmwareUpdate(const char* status, const char* message = nullptr) {
+    JsonDocument payload;
 
-    JsonDocument document;
-    DeserializationError error = deserializeJson(document, payload, length);
+    payload["status"] = status;
 
-    if (error) {
-        core::Logger::error("config", "invalid json: %s", error.c_str());
-        return;
+    if (message) {
+        payload["message"] = message;
     }
 
-    auto config = adaptConfig(document.as<JsonObject>());
-    registry.apply(config.as<JsonObject>());
-
-    messageBus.publish(EVENTS_CHANNEL, R"({"event":"run"})");
+    publishEvent("firmware:update", payload);
 }
 
-void onStatusRequested(byte* payload, unsigned int length) {
-    core::Logger::info("status", "status requested");
-    publishStatus();
-}
-
-void onRebootRequested(byte* payload, unsigned int length) {
-    core::Logger::info("reboot", "reboot requested");
-
-    messageBus.publish(EVENTS_CHANNEL, R"({"event":"reboot"})");
-
+void reboot() {
     scheduler.scheduleOnce(REBOOT_DELAY_MS, []() { ESP.restart(); });
 }
 
-void onFirmwareVersionRequested(byte* payload, unsigned int length) {
-    core::Logger::info("firmware", "version requested");
-
-    char message[256];
-
-    snprintf(message, sizeof(message), R"({"version":"%s"})", core::Firmware::version);
-
-    messageBus.publish("firmware/version/pub", message);
-}
-
-void onFirmwareUpdateRequested(byte* payload, unsigned int length) {
-    core::Logger::info("firmware", "update requested");
+void onSettingsReceived(byte* payload, unsigned int length) {
+    core::Logger::info("settings", "settings received");
 
     JsonDocument document;
     DeserializationError error = deserializeJson(document, payload, length);
 
     if (error) {
-        core::Logger::error("firmware", "invalid json: %s", error.c_str());
+        core::Logger::error("settings", "invalid json: %s", error.c_str());
         return;
     }
 
-    const char* url = document["url"].as<const char*>();
-    const char* md5 = document["md5"].as<const char*>();
+    registry.apply(document.as<JsonObject>());
+
+    publishEvent("settings:applied");
+}
+
+void updateFirmware(const JsonDocument& command) {
+    const char* url = command["url"];
+    const char* md5 = command["md5"];
+
+    if (!url || !md5) {
+        core::Logger::error("firmware", "update command without url or md5");
+        publishFirmwareUpdate("error", "url and md5 are required");
+        return;
+    }
 
     firmware.update(url, md5);
 }
 
+void onCommandReceived(byte* payload, unsigned int length) {
+    JsonDocument command;
+    DeserializationError error = deserializeJson(command, payload, length);
+
+    if (error) {
+        core::Logger::error("command", "invalid json: %s", error.c_str());
+        return;
+    }
+
+    const char* type = command["type"] | "";
+
+    core::Logger::info("command", "%s requested", type);
+
+    if (strcmp(type, "reboot") == 0) {
+        reboot();
+        return;
+    }
+
+    if (strcmp(type, "refresh") == 0) {
+        publishTelemetry();
+        return;
+    }
+
+    if (strcmp(type, "firmware.update") == 0) {
+        updateFirmware(command);
+        return;
+    }
+
+    core::Logger::error("command", "unknown command: %s", type);
+}
+
 void onFirmwareUpdateStarted() {
-    messageBus.publish(EVENTS_CHANNEL, R"({"event":"firmware:update:started"})");
     core::Logger::info("firmware", "update started");
+    publishFirmwareUpdate("started");
 }
 
 void onFirmwareUpdateSuccess() {
-    messageBus.publish(EVENTS_CHANNEL, R"({"event":"firmware:update:success"})");
     core::Logger::info("firmware", "update success, rebooting...");
-    scheduler.scheduleOnce(REBOOT_DELAY_MS, []() { ESP.restart(); });
+    publishFirmwareUpdate("success");
+    reboot();
 }
 
-void onFirmwareUpdateError(const char* errorMessage) {
-    char message[256];
-    snprintf(message, sizeof(message), R"({"event":"firmware:update:error","message":"%s"})", errorMessage);
-    messageBus.publish(EVENTS_CHANNEL, message);
-    core::Logger::error("firmware", "update failed: %s", errorMessage);
+void onFirmwareUpdateError(const char* message) {
+    core::Logger::error("firmware", "update failed: %s", message);
+    publishFirmwareUpdate("error", message);
 }
 
 
@@ -148,25 +155,20 @@ void setup() {
     });
 
     eventBus.on(EVENT_LIGHT_SWITCH, [](const char* data) {
-        char message[128];
-
-        snprintf(message, sizeof(message), R"({"event":"light:switch","isOn":%s})", data);
-        messageBus.publish(EVENTS_CHANNEL, message);
+        publishEvent("light:change", registry.getStatus({"light"}));
 
         if (strcmp(data, "false") == 0) {
             scheduler.scheduleOnce(FAN_RESET_DELAY_MS, []() { fan.reset(); });
         }
     });
 
-    messageBus.subscribe("config/sub", onConfigReceived);
-    messageBus.subscribe("status/sub", onStatusRequested);
-    messageBus.subscribe("reboot/sub", onRebootRequested);
-    messageBus.subscribe("firmware/update/sub", onFirmwareUpdateRequested);
-    messageBus.subscribe("firmware/version/sub", onFirmwareVersionRequested);
+    messageBus.subscribe(CHANNEL_SETTINGS, onSettingsReceived);
+    messageBus.subscribe(CHANNEL_COMMANDS, onCommandReceived);
 
-    scheduler.schedule(TELEMETRY_INTERVAL_MS, publishStatus);
+    scheduler.schedule(TELEMETRY_INTERVAL_MS, publishTelemetry);
 
-    messageBus.publish("config/pub");
+    JsonDocument request;
+    messageBus.publish(CHANNEL_SETTINGS_REQUEST, request);
 }
 
 void loop() {

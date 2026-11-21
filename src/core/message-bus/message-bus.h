@@ -1,13 +1,16 @@
 #pragma once
 
+#include <ArduinoJson.h>
 #include <core/mqtt/mqtt.h>
 
 namespace core {
     class MessageBus {
         public:
+            static constexpr int protocolVersion = 2;
+
             MessageBus(Mqtt& mqtt, const char* controllerId);
 
-            void publish(const char* channel, const char* payload = "{}");
+            void publish(const char* channel, JsonDocument& payload);
             void subscribe(const char* channel, MqttCallback handler);
 
         private:

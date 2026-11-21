@@ -1,8 +1,13 @@
 #include <core/mqtt/mqtt.h>
 #include <core/logger/logger.h>
 
+namespace {
+    constexpr uint16_t BUFFER_SIZE = 512;
+}
+
 core::Mqtt::Mqtt(Client& networkClient) {
     client.setClient(networkClient);
+    client.setBufferSize(BUFFER_SIZE);
 };
 
 void core::Mqtt::resubscribe() {
@@ -62,7 +67,10 @@ void core::Mqtt::publish(const char* topic, const char* payload) {
     }
 
     Logger::info("mqtt", "publish %s: %s", topic, payload);
-    client.publish(topic, payload);
+
+    if (!client.publish(topic, payload)) {
+        Logger::error("mqtt", "publish to %s failed", topic);
+    }
 };
 
 void core::Mqtt::loop() {
