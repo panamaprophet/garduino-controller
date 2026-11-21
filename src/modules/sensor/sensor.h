@@ -22,10 +22,14 @@ namespace modules {
             unsigned int retryCount = 5;
             unsigned int retryCounter = 0;
             unsigned int interval = 30 * 1000;
-            unsigned int thresholdTemperature = 0;
+            unsigned int thresholdTemperature = 30;
 
             float temperature = 0;
             float humidity = 0;
             int stabilityFactor = 0;
+
+            bool hasReading = false;
+            bool isFailing = false;
+            const char* error = "no reading yet";
     };
 }

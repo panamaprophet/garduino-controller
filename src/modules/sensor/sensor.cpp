@@ -29,16 +29,32 @@ modules::Sensor::Sensor(core::EventBus& eventBus, int pin)
 
         humidity = newHumidity;
         temperature = newTemperature;
+        hasReading = true;
+        retryCounter = 0;
+
+        if (isFailing) {
+            isFailing = false;
+            core::Logger::info("sensor", "readings recovered");
+            changed();
+        }
     });
 
-    sensor.onError([this](uint8_t error) {
+    sensor.onError([this](uint8_t) {
         retryCounter++;
 
         if (retryCounter <= retryCount) {
             sensor.read();
-        } else {
-            retryCounter = 0;
-            core::Logger::error("sensor", "read failed: %s", sensor.getError());
+            return;
+        }
+
+        retryCounter = 0;
+        error = sensor.getError();
+
+        core::Logger::error("sensor", "read failed: %s", error);
+
+        if (!isFailing) {
+            isFailing = true;
+            changed();
         }
     });
 }
@@ -63,6 +79,12 @@ void modules::Sensor::apply(const JsonObject& config) {
 
 JsonDocument modules::Sensor::getStatus() const {
     JsonDocument status;
+
+    if (isFailing || !hasReading) {
+        status["error"] = error;
+        return status;
+    }
+
     status["temperature"] = temperature;
     status["humidity"] = humidity;
     status["stabilityFactor"] = stabilityFactor;
