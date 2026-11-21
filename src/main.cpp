@@ -10,7 +10,6 @@ namespace {
     constexpr const char* CHANNEL_COMMANDS = "commands";
 
     constexpr const char* EVENT_TEMPERATURE_HIGH = "temperature:high";
-    constexpr const char* EVENT_LIGHT_SWITCH = "light:switch";
 
     constexpr unsigned long REBOOT_DELAY_MS = 5 * 1000;
     constexpr unsigned long FAN_RESET_DELAY_MS = 60 * 1000;
@@ -53,6 +52,24 @@ void publishFirmwareUpdate(const char* status, const char* message = nullptr) {
     }
 
     publishEvent("firmware:update", payload);
+}
+
+void publishChange(const char* name) {
+    char type[32];
+
+    snprintf(type, sizeof(type), "%s:change", name);
+
+    publishEvent(type, registry.getStatus({name}));
+}
+
+void onModuleChanged(const char* name) {
+    publishChange(name);
+
+    bool isLightOff = strcmp(name, light.name()) == 0 && !light.getStatus()["isOn"].as<bool>();
+
+    if (isLightOff) {
+        scheduler.scheduleOnce(FAN_RESET_DELAY_MS, []() { fan.reset(); });
+    }
 }
 
 void reboot() {
@@ -154,13 +171,7 @@ void setup() {
         fan.stepUp();
     });
 
-    eventBus.on(EVENT_LIGHT_SWITCH, [](const char* data) {
-        publishEvent("light:change", registry.getStatus({"light"}));
-
-        if (strcmp(data, "false") == 0) {
-            scheduler.scheduleOnce(FAN_RESET_DELAY_MS, []() { fan.reset(); });
-        }
-    });
+    eventBus.on(modules::Module::CHANGED_EVENT, onModuleChanged);
 
     messageBus.subscribe(CHANNEL_SETTINGS, onSettingsReceived);
     messageBus.subscribe(CHANNEL_COMMANDS, onCommandReceived);

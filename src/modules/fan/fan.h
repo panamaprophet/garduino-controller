@@ -24,8 +24,9 @@ namespace modules {
             unsigned int currentSpeed = 0;
             unsigned int maxSpeed = 255;
             unsigned int minSpeed = 0;
-            unsigned int defaultSpeed = 120;
+            unsigned int defaultSpeed = 125;
             unsigned int step = 50;
+            bool configured = false;
 
             void setSpeed(unsigned int speed);
     };

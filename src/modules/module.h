@@ -6,6 +6,8 @@
 namespace modules {
     class Module {
         public:
+            static constexpr const char* CHANGED_EVENT = "module:changed";
+
             Module(core::EventBus& eventBus) : eventBus(eventBus) {}
 
             virtual const char* name() const = 0;
@@ -15,5 +17,9 @@ namespace modules {
 
         protected:
             core::EventBus& eventBus;
+
+            void changed() {
+                eventBus.emit(CHANGED_EVENT, name());
+            }
     };
 }

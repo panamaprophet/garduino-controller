@@ -2,7 +2,6 @@
 #include <core/logger/logger.h>
 
 namespace {
-    constexpr const char* EVENT_LIGHT_SWITCH = "light:switch";
     constexpr unsigned int PWM_FREQUENCY = 1000;
     constexpr unsigned long MS_PER_DAY = 86400000;
 }
@@ -39,7 +38,7 @@ void modules::Light::apply(const JsonObject& config) {
         analogWriteFreq(PWM_FREQUENCY);
         analogWrite(pin, isOn ? PIN_ON : PIN_OFF);
 
-        eventBus.emit(EVENT_LIGHT_SWITCH, isOn ? "true" : "false");
+        changed();
     });
 
     analogWriteFreq(PWM_FREQUENCY);

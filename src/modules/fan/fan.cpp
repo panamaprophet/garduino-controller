@@ -16,26 +16,39 @@ const char* modules::Fan::name() const {
 }
 
 void modules::Fan::apply(const JsonObject& config) {
-    if (config["defaultSpeed"].is<unsigned int>()) {
-        defaultSpeed = config["defaultSpeed"].as<unsigned int>();
+    auto speed = config["defaultSpeed"].is<unsigned int>()
+        ? config["defaultSpeed"].as<unsigned int>()
+        : defaultSpeed;
+
+    if (configured && speed == defaultSpeed) {
+        return;
     }
+
+    configured = true;
+    defaultSpeed = speed;
 
     setSpeed(defaultSpeed);
 }
 
 JsonDocument modules::Fan::getStatus() const {
     JsonDocument status;
-    status["currentSpeed"] = currentSpeed;
+    status["speed"] = currentSpeed;
     return status;
 }
 
 void modules::Fan::setSpeed(unsigned int speed) {
+    auto previousSpeed = currentSpeed;
+
     currentSpeed = std::min(std::max(minSpeed, speed), maxSpeed);
 
     core::Logger::info("fan", "speed %d (requested %d)", currentSpeed, speed);
 
     analogWriteFreq(PWM_FREQUENCY);
     analogWrite(pin, currentSpeed);
+
+    if (currentSpeed != previousSpeed) {
+        changed();
+    }
 }
 
 void modules::Fan::stepUp() {
