@@ -40,10 +40,18 @@ void core::Mqtt::connect(const char* host, const char* id, uint16 port) {
 
     client.setServer(host, port);
 
-    reconnect();
+    tryConnect();
 };
 
 void core::Mqtt::reconnect() {
+    if (millis() - lastAttempt < RECONNECT_INTERVAL_MS) {
+        return;
+    }
+
+    tryConnect();
+}
+
+void core::Mqtt::tryConnect() {
     lastAttempt = millis();
 
     Logger::info("mqtt", "connecting...");
@@ -68,16 +76,12 @@ void core::Mqtt::resubscribe() {
     }
 }
 
-bool core::Mqtt::ensureConnected() {
-    if (!client.connected() && millis() - lastAttempt >= RECONNECT_INTERVAL_MS) {
+void core::Mqtt::publish(const char* topic, const char* payload) {
+    if (!client.connected()) {
         reconnect();
     }
 
-    return client.connected();
-}
-
-void core::Mqtt::publish(const char* topic, const char* payload) {
-    if (!ensureConnected()) {
+    if (!client.connected()) {
         Logger::error("mqtt", "not connected, publish to %s dropped", topic);
         return;
     }
@@ -90,7 +94,10 @@ void core::Mqtt::publish(const char* topic, const char* payload) {
 };
 
 void core::Mqtt::loop() {
-    if (ensureConnected()) {
-        client.loop();
+    if (!client.connected()) {
+        reconnect();
+        return;
     }
+
+    client.loop();
 };
