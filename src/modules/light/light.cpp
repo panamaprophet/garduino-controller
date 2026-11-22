@@ -33,7 +33,7 @@ void modules::Light::apply(const JsonObject& config) {
 
     core::Logger::info("light", "on at %02u:%02u UTC for %u min", hours, minutes, durationMinutes);
 
-    ticker.attach_ms(checkInterval, [this]() { update(); });
+    ticker.attach_ms_scheduled(checkInterval, [this]() { update(); });
 
     update(true);
 }

@@ -15,11 +15,11 @@ void core::Scheduler::schedule(unsigned long interval, SchedulerCallback callbac
     tickers.push_back(std::make_unique<Ticker>());
 
     if (repeat) {
-        tickers.back()->attach_ms(interval, callback);
+        tickers.back()->attach_ms_scheduled(interval, callback);
     }
 
     if (!repeat) {
-        tickers.back()->once_ms(interval, callback);
+        tickers.back()->once_ms_scheduled(interval, callback);
     }
 }
 

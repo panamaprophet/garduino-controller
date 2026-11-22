@@ -1,3 +1,4 @@
+#include <Schedule.h>
 #include <modules/sensor/sensor.h>
 #include <core/logger/logger.h>
 
@@ -5,61 +6,69 @@ modules::Sensor::Sensor(core::EventBus& eventBus, int pin): Module(eventBus), pi
     sensor.setup(pin);
 
     sensor.onData([this](float newHumidity, float newTemperature) {
-        if (newTemperature < temperature) {
-            stabilityFactor--;
-        }
-
-        if (newTemperature > temperature) {
-            stabilityFactor++;
-        }
-
-        if (newTemperature == temperature) {
-            stabilityFactor > 0 ? stabilityFactor-- : stabilityFactor++;
-        }
-
-        overheating = newTemperature >= thresholdTemperature && newTemperature > temperature;
-
-        humidity = newHumidity;
-        temperature = newTemperature;
-        hasReading = true;
-        retryCounter = 0;
-
-        bool isRecovered = isFailing;
-
-        isFailing = false;
-
-        if (isRecovered) {
-            core::Logger::info("sensor", "readings recovered");
-        }
-
-        if (overheating) {
-            core::Logger::info("sensor", "temperature threshold reached");
-        }
-
-        if (isRecovered || overheating) {
-            changed();
-        }
+        schedule_function([this, newHumidity, newTemperature]() { onReading(newHumidity, newTemperature); });
     });
 
     sensor.onError([this](uint8_t) {
-        retryCounter++;
-
-        if (retryCounter <= retryCount) {
-            sensor.read();
-            return;
-        }
-
-        retryCounter = 0;
-        overheating = false;
-        error = sensor.getError();
-
-        core::Logger::error("sensor", "read failed: %s", error);
-
-        if (!isFailing) {
-            isFailing = true;
-            changed();
-        }
+        schedule_function([this]() { onFailure(); });
     });
+}
+
+void modules::Sensor::onReading(float newHumidity, float newTemperature) {
+    if (newTemperature < temperature) {
+        stabilityFactor--;
+    }
+
+    if (newTemperature > temperature) {
+        stabilityFactor++;
+    }
+
+    if (newTemperature == temperature) {
+        stabilityFactor > 0 ? stabilityFactor-- : stabilityFactor++;
+    }
+
+    overheating = newTemperature >= thresholdTemperature && newTemperature > temperature;
+
+    humidity = newHumidity;
+    temperature = newTemperature;
+    hasReading = true;
+    retryCounter = 0;
+
+    bool isRecovered = isFailing;
+
+    isFailing = false;
+
+    if (isRecovered) {
+        core::Logger::info("sensor", "readings recovered");
+    }
+
+    if (overheating) {
+        core::Logger::info("sensor", "temperature threshold reached");
+    }
+
+    if (isRecovered || overheating) {
+        changed();
+    }
+}
+
+void modules::Sensor::onFailure() {
+    retryCounter++;
+
+    if (retryCounter <= retryCount) {
+        sensor.read();
+        return;
+    }
+
+    retryCounter = 0;
+    overheating = false;
+    error = sensor.getError();
+
+    core::Logger::error("sensor", "read failed: %s", error);
+
+    if (!isFailing) {
+        isFailing = true;
+        changed();
+    }
 }
 
 const char* modules::Sensor::name() const {
@@ -73,7 +82,7 @@ void modules::Sensor::apply(const JsonObject& config) {
 
     core::Logger::info("sensor", "started, polling every %d s", interval / 1000);
 
-    ticker.attach_ms(interval, [this]() {
+    ticker.attach_ms_scheduled(interval, [this]() {
         sensor.read();
     });
 

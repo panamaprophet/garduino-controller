@@ -34,5 +34,8 @@ namespace modules {
             bool isFailing = false;
             bool overheating = false;
             const char* error = "no reading yet";
+
+            void onReading(float newHumidity, float newTemperature);
+            void onFailure();
     };
 }
