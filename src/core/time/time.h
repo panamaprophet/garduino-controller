@@ -10,7 +10,7 @@ namespace core {
 
             time_t sync();
 
-            static uint32_t secondsOfDay();
-            static bool parseTimeOfDay(const char* value, uint32_t& seconds);
+            static uint32_t secondsToday();
+            static bool parseTimeToSeconds(const char* value, uint32_t& seconds);
     };
 }

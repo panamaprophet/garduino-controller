@@ -5,8 +5,7 @@ namespace {
     constexpr unsigned int PWM_FREQUENCY = 150;
 }
 
-modules::Fan::Fan(core::EventBus& eventBus, int pin)
-    : Module(eventBus), pin(pin) {
+modules::Fan::Fan(core::EventBus& eventBus, int pin): Module(eventBus), pin(pin) {
     pinMode(pin, OUTPUT);
     analogWrite(pin, minSpeed);
 }
@@ -16,23 +15,16 @@ const char* modules::Fan::name() const {
 }
 
 void modules::Fan::apply(const JsonObject& config) {
-    auto speed = config["defaultSpeed"].is<unsigned int>()
-        ? config["defaultSpeed"].as<unsigned int>()
-        : defaultSpeed;
-
-    if (configured && speed == defaultSpeed) {
-        return;
-    }
-
-    configured = true;
-    defaultSpeed = speed;
+    defaultSpeed = config["defaultSpeed"] | defaultSpeed;
 
     setSpeed(defaultSpeed);
 }
 
 JsonDocument modules::Fan::getStatus() const {
     JsonDocument status;
+
     status["speed"] = currentSpeed;
+
     return status;
 }
 

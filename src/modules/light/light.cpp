@@ -7,8 +7,7 @@ namespace {
     constexpr uint32_t MS_PER_SECOND = 1000;
 }
 
-modules::Light::Light(core::EventBus& eventBus, int pin)
-    : Module(eventBus), pin(pin) {
+modules::Light::Light(core::EventBus& eventBus, int pin): Module(eventBus), pin(pin) {
     pinMode(pin, OUTPUT);
     analogWrite(pin, PIN_OFF);
 }
@@ -20,7 +19,7 @@ const char* modules::Light::name() const {
 void modules::Light::apply(const JsonObject& config) {
     uint32_t parsedOnTime;
 
-    if (core::Time::parseTimeOfDay(config["onTime"], parsedOnTime)) {
+    if (core::Time::parseTimeToSeconds(config["onTime"], parsedOnTime)) {
         onTime = parsedOnTime;
     }
 
@@ -39,7 +38,7 @@ void modules::Light::apply(const JsonObject& config) {
     update(true);
 }
 
-bool modules::Light::shouldBeOn() const {
+bool modules::Light::nextState() const {
     if (duration == 0) {
         return false;
     }
@@ -48,7 +47,7 @@ bool modules::Light::shouldBeOn() const {
         return true;
     }
 
-    auto now = core::Time::secondsOfDay();
+    auto now = core::Time::secondsToday();
     auto end = (onTime + duration) % core::Time::SECONDS_PER_DAY;
 
     if (onTime < end) {
@@ -59,7 +58,7 @@ bool modules::Light::shouldBeOn() const {
 }
 
 void modules::Light::update(bool force) {
-    auto next = shouldBeOn();
+    auto next = nextState();
     auto isSwitched = next != on;
 
     if (!isSwitched && !force) {

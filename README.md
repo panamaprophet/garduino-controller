@@ -46,7 +46,7 @@ Connection status is not published by the firmware: AWS IoT reports connects and
 A module implements `name()`, `apply(settings)` and `getStatus()`, and calls `changed()` when its status changes, which publishes `<module>:change`. Modules only read the settings fields that are present.
 
 - `modules/light`: switches the light on a daily UTC schedule (`onTime`, `durationMs`), evaluated against wall-clock time every 5 seconds.
-- `modules/fan`: PWM fan speed. Steps up while the temperature rises at or above the threshold, and returns to the default speed a minute after the light turns off. Applying settings resets the speed only when `defaultSpeed` changes.
+- `modules/fan`: PWM fan speed. Steps up while the temperature rises at or above the threshold, and returns to the default speed a minute after the light turns off.
 - `modules/sensor`: polls the DHT11 every 30 seconds and reports `{ "error" }` instead of readings while it fails.
 
 ## Provisioning a controller

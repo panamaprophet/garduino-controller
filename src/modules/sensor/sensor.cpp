@@ -5,8 +5,7 @@ namespace {
     constexpr const char* EVENT_TEMPERATURE_HIGH = "temperature:high";
 }
 
-modules::Sensor::Sensor(core::EventBus& eventBus, int pin)
-    : Module(eventBus), pin(pin) {
+modules::Sensor::Sensor(core::EventBus& eventBus, int pin): Module(eventBus), pin(pin) {
     sensor.setup(pin);
 
     sensor.onData([this](float newHumidity, float newTemperature) {
