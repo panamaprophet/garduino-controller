@@ -31,6 +31,10 @@ void core::Mqtt::subscribe(const char* topic, MqttCallback callback) {
     client.subscribe(topic);
 }
 
+void core::Mqtt::onConnect(ConnectCallback callback) {
+    connectCallback = callback;
+}
+
 void core::Mqtt::connect(const char* host, const char* id, uint16 port) {
     this->id = id;
 
@@ -52,6 +56,10 @@ void core::Mqtt::reconnect() {
     Logger::info("mqtt", "connected");
 
     resubscribe();
+
+    if (connectCallback) {
+        connectCallback();
+    }
 }
 
 void core::Mqtt::resubscribe() {

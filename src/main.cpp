@@ -55,13 +55,14 @@ void setup() {
 
     timer.sync();
 
-    mqtt.connect(config.host, config.controllerId);
-
     eventBus.on(modules::Module::CHANGED_EVENT, onModuleChanged);
     eventBus.on(modules::Module::CHANGED_EVENT, onLightChanged);
     eventBus.on(modules::Module::CHANGED_EVENT, onTemperatureChanged);
 
     protocol.begin();
+
+    mqtt.onConnect([]() { protocol.onConnected(); });
+    mqtt.connect(config.host, config.controllerId);
 }
 
 void loop() {

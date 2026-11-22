@@ -16,6 +16,7 @@ namespace core {
             ProtocolV2(MessageBus& messageBus, ModuleRegistry& registry, Firmware& firmware, Scheduler& scheduler);
 
             void begin() override;
+            void onConnected() override;
             void publishTelemetry() override;
             void publishChange(const char* name) override;
 
@@ -24,6 +25,7 @@ namespace core {
             ModuleRegistry& registry;
             Firmware& firmware;
             Scheduler& scheduler;
+            bool isBootPublished = false;
 
             void publish(const char* channel, JsonDocument& payload);
             void publishEvent(const char* type, JsonDocument payload = JsonDocument());

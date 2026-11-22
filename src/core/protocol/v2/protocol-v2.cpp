@@ -35,9 +35,15 @@ void core::ProtocolV2::begin() {
     });
 
     scheduler.schedule(TELEMETRY_INTERVAL_MS, [this]() { publishTelemetry(); });
+}
 
+void core::ProtocolV2::onConnected() {
     requestSettings();
-    publishBoot();
+
+    if (!isBootPublished) {
+        publishBoot();
+        isBootPublished = true;
+    }
 }
 
 void core::ProtocolV2::publishTelemetry() {
