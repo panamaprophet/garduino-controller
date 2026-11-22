@@ -15,7 +15,9 @@ const char* modules::Fan::name() const {
 }
 
 void modules::Fan::apply(const JsonObject& config) {
-    defaultSpeed = config["defaultSpeed"] | defaultSpeed;
+    if (config["defaultSpeed"].is<unsigned int>()) {
+        defaultSpeed = config["defaultSpeed"].as<unsigned int>();
+    }
 
     setSpeed(defaultSpeed);
 }

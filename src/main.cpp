@@ -9,8 +9,6 @@ namespace {
     constexpr const char* CHANNEL_SETTINGS_REQUEST = "settings/get";
     constexpr const char* CHANNEL_COMMANDS = "commands";
 
-    constexpr const char* EVENT_TEMPERATURE_HIGH = "temperature:high";
-
     constexpr unsigned long REBOOT_DELAY_MS = 5 * 1000;
     constexpr unsigned long FAN_RESET_DELAY_MS = 60 * 1000;
     constexpr unsigned long TELEMETRY_INTERVAL_MS = 10 * 60 * 1000;
@@ -80,11 +78,23 @@ void publishChange(const char* name) {
 
 void onModuleChanged(const char* name) {
     publishChange(name);
+}
 
-    bool isLightOff = strcmp(name, light.name()) == 0 && !light.isOn();
+void onLightChanged(const char* name) {
+    const auto isLightModule = strcmp(name, light.name()) == 0;
+    const auto isLightOff = !light.isOn();
 
-    if (isLightOff) {
+    if (isLightModule && isLightOff) {
         scheduler.scheduleOnce(FAN_RESET_DELAY_MS, []() { fan.reset(); });
+    }
+}
+
+void onTemperatureChanged(const char* name) {
+    const auto isSensorModule = strcmp(name, sensor.name()) == 0;
+    const auto isOverheating = sensor.isOverheating();
+
+    if (isSensorModule && isOverheating) {
+        fan.stepUp();
     }
 }
 
@@ -183,11 +193,9 @@ void setup() {
     firmware.onSuccess(onFirmwareUpdateSuccess);
     firmware.onError(onFirmwareUpdateError);
 
-    eventBus.on(EVENT_TEMPERATURE_HIGH, [](const char*) {
-        fan.stepUp();
-    });
-
     eventBus.on(modules::Module::CHANGED_EVENT, onModuleChanged);
+    eventBus.on(modules::Module::CHANGED_EVENT, onLightChanged);
+    eventBus.on(modules::Module::CHANGED_EVENT, onTemperatureChanged);
 
     messageBus.subscribe(CHANNEL_SETTINGS, onSettingsReceived);
     messageBus.subscribe(CHANNEL_COMMANDS, onCommandReceived);

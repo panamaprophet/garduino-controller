@@ -14,6 +14,8 @@ namespace modules {
             void apply(const JsonObject& config) override;
             JsonDocument getStatus() const override;
 
+            bool isOverheating() const;
+
         private:
             unsigned int pin;
             Ticker ticker;
@@ -30,6 +32,7 @@ namespace modules {
 
             bool hasReading = false;
             bool isFailing = false;
+            bool overheating = false;
             const char* error = "no reading yet";
     };
 }

@@ -1,10 +1,6 @@
 #include <modules/sensor/sensor.h>
 #include <core/logger/logger.h>
 
-namespace {
-    constexpr const char* EVENT_TEMPERATURE_HIGH = "temperature:high";
-}
-
 modules::Sensor::Sensor(core::EventBus& eventBus, int pin): Module(eventBus), pin(pin) {
     sensor.setup(pin);
 
@@ -21,19 +17,26 @@ modules::Sensor::Sensor(core::EventBus& eventBus, int pin): Module(eventBus), pi
             stabilityFactor > 0 ? stabilityFactor-- : stabilityFactor++;
         }
 
-        if (newTemperature >= thresholdTemperature && newTemperature > temperature) {
-            core::Logger::info("sensor", "temperature threshold reached");
-            this->eventBus.emit(EVENT_TEMPERATURE_HIGH);
-        }
+        overheating = newTemperature >= thresholdTemperature && newTemperature > temperature;
 
         humidity = newHumidity;
         temperature = newTemperature;
         hasReading = true;
         retryCounter = 0;
 
-        if (isFailing) {
-            isFailing = false;
+        bool isRecovered = isFailing;
+
+        isFailing = false;
+
+        if (isRecovered) {
             core::Logger::info("sensor", "readings recovered");
+        }
+
+        if (overheating) {
+            core::Logger::info("sensor", "temperature threshold reached");
+        }
+
+        if (isRecovered || overheating) {
             changed();
         }
     });
@@ -47,6 +50,7 @@ modules::Sensor::Sensor(core::EventBus& eventBus, int pin): Module(eventBus), pi
         }
 
         retryCounter = 0;
+        overheating = false;
         error = sensor.getError();
 
         core::Logger::error("sensor", "read failed: %s", error);
@@ -74,6 +78,10 @@ void modules::Sensor::apply(const JsonObject& config) {
     });
 
     sensor.read();
+}
+
+bool modules::Sensor::isOverheating() const {
+    return overheating;
 }
 
 JsonDocument modules::Sensor::getStatus() const {

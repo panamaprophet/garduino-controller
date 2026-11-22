@@ -21,7 +21,7 @@ Events published to `telemetry`:
 |---|---|
 | `boot` | once per start: `firmwareVersion`, `protocolVersion`, `modules`, `resetReason` |
 | `telemetry` | every 10 minutes and on `refresh`: the status of every module |
-| `<module>:change` | a module's status changed: `light` on every switch, `fan` on every speed change, `sensor` when readings start failing and when they recover |
+| `<module>:change` | a module's status changed: `light` on every switch, `fan` on every speed change, `sensor` when readings start failing, when they recover and on every reading that rises at or above the threshold temperature |
 | `settings:applied` | settings were applied |
 | `firmware:update` | `{ "status": "started" \| "success" \| "error", "message"? }` |
 
