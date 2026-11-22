@@ -6,6 +6,11 @@
 namespace core {
     class Time {
         public:
+            static constexpr uint32_t SECONDS_PER_DAY = 86400;
+
             time_t sync();
+
+            static uint32_t secondsOfDay();
+            static bool parseTimeOfDay(const char* value, uint32_t& seconds);
     };
 }

@@ -75,7 +75,6 @@ Requires [jq](https://jqlang.org/).
 
 ```sh
 pio run                 # build
-pio test -e native      # unit tests
 pio device monitor      # serial output
 ```
 

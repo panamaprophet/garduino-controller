@@ -1,7 +1,6 @@
-#include <time.h>
 #include <modules/light/light.h>
-#include <modules/light/schedule.h>
 #include <core/logger/logger.h>
+#include <core/time/time.h>
 
 namespace {
     constexpr unsigned int PWM_FREQUENCY = 1000;
@@ -21,7 +20,7 @@ const char* modules::Light::name() const {
 void modules::Light::apply(const JsonObject& config) {
     uint32_t parsedOnTime;
 
-    if (schedule::parseTimeOfDay(config["onTime"], parsedOnTime)) {
+    if (core::Time::parseTimeOfDay(config["onTime"], parsedOnTime)) {
         onTime = parsedOnTime;
     }
 
@@ -40,16 +39,34 @@ void modules::Light::apply(const JsonObject& config) {
     update(true);
 }
 
+bool modules::Light::shouldBeOn() const {
+    if (duration == 0) {
+        return false;
+    }
+
+    if (duration >= core::Time::SECONDS_PER_DAY) {
+        return true;
+    }
+
+    auto now = core::Time::secondsOfDay();
+    auto end = (onTime + duration) % core::Time::SECONDS_PER_DAY;
+
+    if (onTime < end) {
+        return now >= onTime && now < end;
+    }
+
+    return now >= onTime || now < end;
+}
+
 void modules::Light::update(bool force) {
-    auto now = static_cast<uint32_t>(time(nullptr));
-    auto shouldBeOn = schedule::isActive(now, onTime, duration);
-    auto isSwitched = shouldBeOn != on;
+    auto next = shouldBeOn();
+    auto isSwitched = next != on;
 
     if (!isSwitched && !force) {
         return;
     }
 
-    on = shouldBeOn;
+    on = next;
 
     analogWriteFreq(PWM_FREQUENCY);
     analogWrite(pin, on ? PIN_ON : PIN_OFF);

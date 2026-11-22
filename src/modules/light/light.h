@@ -27,6 +27,7 @@ namespace modules {
             uint32_t onTime = 12 * 3600;
             uint32_t duration = 12 * 3600;
 
+            bool shouldBeOn() const;
             void update(bool force = false);
     };
 }

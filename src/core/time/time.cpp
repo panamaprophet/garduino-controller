@@ -29,3 +29,31 @@ time_t core::Time::sync() {
 
     return now;
 };
+
+uint32_t core::Time::secondsOfDay() {
+    return static_cast<uint32_t>(time(nullptr) % SECONDS_PER_DAY);
+}
+
+bool core::Time::parseTimeOfDay(const char* value, uint32_t& seconds) {
+    if (!value) {
+        return false;
+    }
+
+    bool isFormatValid = isdigit(value[0]) && isdigit(value[1]) && value[2] == ':'
+        && isdigit(value[3]) && isdigit(value[4]) && value[5] == '\0';
+
+    if (!isFormatValid) {
+        return false;
+    }
+
+    uint32_t hours = (value[0] - '0') * 10 + (value[1] - '0');
+    uint32_t minutes = (value[3] - '0') * 10 + (value[4] - '0');
+
+    if (hours > 23 || minutes > 59) {
+        return false;
+    }
+
+    seconds = hours * 3600 + minutes * 60;
+
+    return true;
+}
