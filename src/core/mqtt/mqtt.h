@@ -13,9 +13,11 @@ namespace core {
         private:
             PubSubClient client;
             std::map<std::string, MqttCallback> callbacks;
-            char* _host;
-            char* _id;
+            const char* id = nullptr;
+            unsigned long lastAttempt = 0;
 
+            void reconnect();
+            bool ensureConnected();
             void resubscribe();
 
         public:
