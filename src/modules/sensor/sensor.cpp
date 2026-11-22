@@ -2,7 +2,7 @@
 #include <modules/sensor/sensor.h>
 #include <core/logger/logger.h>
 
-modules::Sensor::Sensor(core::EventBus& eventBus, int pin): Module(eventBus), pin(pin) {
+modules::Sensor::Sensor(int pin): pin(pin) {
     sensor.setup(pin);
 
     sensor.onData([this](float newHumidity, float newTemperature) {

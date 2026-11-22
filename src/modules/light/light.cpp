@@ -7,7 +7,7 @@ namespace {
     constexpr uint32_t MS_PER_SECOND = 1000;
 }
 
-modules::Light::Light(core::EventBus& eventBus, int pin): Module(eventBus), pin(pin) {
+modules::Light::Light(int pin): pin(pin) {
     pinMode(pin, OUTPUT);
     analogWrite(pin, PIN_OFF);
 }

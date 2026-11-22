@@ -8,7 +8,7 @@
 namespace modules {
     class Sensor : public Module {
         public:
-            Sensor(core::EventBus& eventBus, int pin);
+            Sensor(int pin);
 
             const char* name() const override;
             void apply(const JsonObject& config) override;

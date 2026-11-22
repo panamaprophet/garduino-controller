@@ -6,29 +6,23 @@ namespace {
     constexpr unsigned long FAN_RESET_DELAY_MS = 60 * 1000;
 }
 
-
 core::Config config;
 core::Network network;
 core::Mqtt mqtt(network.client);
 core::Scheduler scheduler;
 core::Firmware firmware(network.client);
-core::EventBus eventBus;
 core::MessageBus messageBus(mqtt, config.controllerId);
 
-modules::Fan fan(eventBus, config.pinFan);
-modules::Light light(eventBus, config.pinLight);
-modules::Sensor sensor(eventBus, config.pinSensor);
+modules::Fan fan(config.pinFan);
+modules::Light light(config.pinLight);
+modules::Sensor sensor(config.pinSensor);
 
 core::ModuleRegistry registry({&fan, &light, &sensor});
 core::ProtocolV2 protocol(messageBus, registry, firmware, scheduler);
 
 
-void onModuleChanged(const char* name) {
-    protocol.publishChange(name);
-}
-
-void onLightChanged(const char* name) {
-    const auto isLightModule = strcmp(name, light.name()) == 0;
+void onLightChanged(modules::Module& module) {
+    const auto isLightModule = &module == &light;
     const auto isLightOff = !light.isOn();
 
     if (isLightModule && isLightOff) {
@@ -36,8 +30,8 @@ void onLightChanged(const char* name) {
     }
 }
 
-void onTemperatureChanged(const char* name) {
-    const auto isSensorModule = strcmp(name, sensor.name()) == 0;
+void onTemperatureChanged(modules::Module& module) {
+    const auto isSensorModule = &module == &sensor;
     const auto isOverheating = sensor.isOverheating();
 
     if (isSensorModule && isOverheating) {
@@ -54,11 +48,10 @@ void setup() {
 
     core::Time::sync();
 
-    eventBus.on(modules::Module::CHANGED_EVENT, onModuleChanged);
-    eventBus.on(modules::Module::CHANGED_EVENT, onLightChanged);
-    eventBus.on(modules::Module::CHANGED_EVENT, onTemperatureChanged);
-
     protocol.begin();
+
+    registry.onChange(onLightChanged);
+    registry.onChange(onTemperatureChanged);
 
     mqtt.onConnect([]() { protocol.onConnected(); });
     mqtt.connect(config.host, config.controllerId);

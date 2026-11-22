@@ -7,7 +7,7 @@
 namespace modules {
     class Fan : public Module {
         public:
-            Fan(core::EventBus& eventBus, int pin);
+            Fan(int pin);
 
             const char* name() const override;
             void apply(const JsonObject& config) override;

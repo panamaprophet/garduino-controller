@@ -7,7 +7,7 @@
 namespace modules {
     class Light : public Module {
         public:
-            Light(core::EventBus& eventBus, int pin);
+            Light(int pin);
 
             const char* name() const override;
             void apply(const JsonObject& config) override;

@@ -5,7 +5,7 @@ namespace {
     constexpr unsigned int PWM_FREQUENCY = 150;
 }
 
-modules::Fan::Fan(core::EventBus& eventBus, int pin): Module(eventBus), pin(pin) {
+modules::Fan::Fan(int pin): pin(pin) {
     pinMode(pin, OUTPUT);
     analogWrite(pin, minSpeed);
 }

@@ -7,16 +7,22 @@ namespace {
     constexpr const char* CHANNEL_SETTINGS_REQUEST = "settings/get";
     constexpr const char* CHANNEL_COMMANDS = "commands";
 
+    constexpr int VERSION = 2;
+
     constexpr unsigned long REBOOT_DELAY_MS = 5 * 1000;
     constexpr unsigned long TELEMETRY_INTERVAL_MS = 10 * 60 * 1000;
 }
 
-core::ProtocolV2::ProtocolV2(MessageBus& messageBus, ModuleRegistry& registry, Firmware& firmware, Scheduler& scheduler)
-    : messageBus(messageBus), registry(registry), firmware(firmware), scheduler(scheduler) {}
+core::ProtocolV2::ProtocolV2(
+    MessageBus& messageBus,
+    ModuleRegistry& registry,
+    Firmware& firmware,
+    Scheduler& scheduler
+): Protocol(VERSION, messageBus, registry, firmware, scheduler) {}
 
 void core::ProtocolV2::begin() {
-    messageBus.subscribe(CHANNEL_SETTINGS, [this](byte* payload, unsigned int length) { onSettings(payload, length); });
-    messageBus.subscribe(CHANNEL_COMMANDS, [this](byte* payload, unsigned int length) { onCommand(payload, length); });
+    subscribe(CHANNEL_SETTINGS, [this](JsonDocument& settings) { onSettings(settings); });
+    subscribe(CHANNEL_COMMANDS, [this](JsonDocument& command) { onCommand(command); });
 
     firmware.onStart([this]() {
         Logger::info("firmware", "update started");
@@ -34,6 +40,8 @@ void core::ProtocolV2::begin() {
         publishFirmwareUpdate("error", message);
     });
 
+    registry.onChange([this](modules::Module& module) { publishChange(module); });
+
     scheduler.schedule(TELEMETRY_INTERVAL_MS, [this]() { publishTelemetry(); });
 }
 
@@ -50,17 +58,16 @@ void core::ProtocolV2::publishTelemetry() {
     publishEvent("telemetry", registry.getStatus());
 }
 
-void core::ProtocolV2::publishChange(const char* name) {
+void core::ProtocolV2::publishChange(modules::Module& module) {
     char type[32];
 
-    snprintf(type, sizeof(type), "%s:change", name);
+    snprintf(type, sizeof(type), "%s:change", module.name());
 
-    publishEvent(type, registry.getStatus({name}));
-}
+    JsonDocument payload;
 
-void core::ProtocolV2::publish(const char* channel, JsonDocument& payload) {
-    payload["v"] = version;
-    messageBus.publish(channel, payload);
+    payload[module.name()].set(module.getStatus());
+
+    publishEvent(type, payload);
 }
 
 void core::ProtocolV2::publishEvent(const char* type, JsonDocument payload) {
@@ -101,31 +108,15 @@ void core::ProtocolV2::requestSettings() {
     publish(CHANNEL_SETTINGS_REQUEST, request);
 }
 
-void core::ProtocolV2::onSettings(byte* payload, unsigned int length) {
+void core::ProtocolV2::onSettings(JsonDocument& settings) {
     Logger::info("settings", "settings received");
 
-    JsonDocument document;
-    DeserializationError error = deserializeJson(document, payload, length);
-
-    if (error) {
-        Logger::error("settings", "invalid json: %s", error.c_str());
-        return;
-    }
-
-    registry.apply(document.as<JsonObject>());
+    registry.apply(settings.as<JsonObject>());
 
     publishEvent("settings:applied");
 }
 
-void core::ProtocolV2::onCommand(byte* payload, unsigned int length) {
-    JsonDocument command;
-    DeserializationError error = deserializeJson(command, payload, length);
-
-    if (error) {
-        Logger::error("command", "invalid json: %s", error.c_str());
-        return;
-    }
-
+void core::ProtocolV2::onCommand(JsonDocument& command) {
     const char* type = command["type"] | "";
 
     Logger::info("command", "%s requested", type);
