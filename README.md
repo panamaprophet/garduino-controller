@@ -33,11 +33,12 @@ Connection status is not published by the firmware: AWS IoT reports connects and
 
 - `core/config`: reads `config.json` from the filesystem: Wi-Fi credentials, IoT endpoint, controllerId and pins.
 - `core/network`: Wi-Fi and the TLS client, with certificates loaded from the filesystem.
-- `core/mqtt`: PubSubClient wrapper that reconnects and resubscribes.
-- `core/message-bus`: builds `controllers/<id>/<channel>` topics and serializes payloads with the protocol version.
+- `core/mqtt`: PubSubClient wrapper that reconnects every 5 seconds while offline and resubscribes.
+- `core/protocol`: the `Protocol` interface `main` talks to, with one implementation per device protocol version. `v2/` implements device protocol v2: requests settings on every connect, publishes `boot` once, telemetry every 10 minutes and module changes, and handles settings and commands.
+- `core/message-bus`: builds `controllers/<id>/<channel>` topics and serializes payloads.
 - `core/event-bus`: in-process events between modules and `main`.
 - `core/registry`: the module list; applies settings and collects statuses.
-- `core/scheduler`: recurring and one-shot tasks.
+- `core/scheduler`: recurring and one-shot tasks, run from `loop()`.
 - `core/time`: SNTP sync.
 - `core/firmware`: over-the-air updates.
 

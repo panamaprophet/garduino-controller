@@ -6,8 +6,6 @@
 namespace core {
     class MessageBus {
         public:
-            static constexpr int protocolVersion = 2;
-
             MessageBus(Mqtt& mqtt, const char* controllerId);
 
             void publish(const char* channel, JsonDocument& payload);

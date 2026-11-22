@@ -15,8 +15,6 @@ void core::MessageBus::buildTopic(char* buffer, size_t bufferSize, const char* c
 }
 
 void core::MessageBus::publish(const char* channel, JsonDocument& payload) {
-    payload["v"] = protocolVersion;
-
     if (measureJson(payload) >= PAYLOAD_BUFFER_SIZE) {
         Logger::error("bus", "payload for %s exceeds %u bytes, dropped", channel, PAYLOAD_BUFFER_SIZE);
         return;

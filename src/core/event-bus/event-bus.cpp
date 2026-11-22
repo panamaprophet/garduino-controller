@@ -11,7 +11,7 @@ void core::EventBus::emit(const char* event, const char* data) {
         return;
     }
 
-    for (auto handler : result->second) {
+    for (auto& handler : result->second) {
         handler(data);
     }
 }

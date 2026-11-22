@@ -1,11 +1,12 @@
 #pragma once
 
+#include <functional>
 #include <map>
 #include <string>
 #include <vector>
 
 namespace core {
-    using EventHandler = void (*)(const char* data);
+    using EventHandler = std::function<void(const char* data)>;
 
     class EventBus {
         public:

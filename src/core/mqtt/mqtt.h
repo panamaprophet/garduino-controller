@@ -1,12 +1,13 @@
 #pragma once
 
 #include <Arduino.h>
+#include <functional>
 #include <map>
 #include <string>
 #include <PubSubClient.h>
 
 namespace core {
-    typedef void (*MqttCallback)(byte* payload, unsigned int length);
+    using MqttCallback = std::function<void(byte* payload, unsigned int length)>;
 
     class Mqtt {
         private:
