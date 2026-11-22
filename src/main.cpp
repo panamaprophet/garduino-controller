@@ -10,7 +10,6 @@ namespace {
 core::Config config;
 core::Network network;
 core::Mqtt mqtt(network.client);
-core::Time timer;
 core::Scheduler scheduler;
 core::Firmware firmware(network.client);
 core::EventBus eventBus;
@@ -53,7 +52,7 @@ void setup() {
 
     network.connect(config.ssid, config.password);
 
-    timer.sync();
+    core::Time::sync();
 
     eventBus.on(modules::Module::CHANGED_EVENT, onModuleChanged);
     eventBus.on(modules::Module::CHANGED_EVENT, onLightChanged);

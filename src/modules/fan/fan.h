@@ -1,7 +1,6 @@
 #pragma once
 
 #include <Arduino.h>
-#include <Ticker.h>
 #include <algorithm>
 #include <modules/module.h>
 
@@ -19,7 +18,6 @@ namespace modules {
 
         private:
             unsigned int pin;
-            Ticker ticker;
 
             unsigned int currentSpeed = 0;
             unsigned int maxSpeed = 255;
