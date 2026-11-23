@@ -40,18 +40,17 @@ void core::Mqtt::connect(const char* host, const char* id, uint16 port) {
 
     client.setServer(host, port);
 
-    tryConnect();
+    reconnect();
 };
 
 void core::Mqtt::reconnect() {
-    if (millis() - lastAttempt < RECONNECT_INTERVAL_MS) {
+    if (
+        lastAttempt > 0 &&
+        millis() - lastAttempt < RECONNECT_INTERVAL_MS
+    ) {
         return;
     }
 
-    tryConnect();
-}
-
-void core::Mqtt::tryConnect() {
     lastAttempt = millis();
 
     Logger::info("mqtt", "connecting...");

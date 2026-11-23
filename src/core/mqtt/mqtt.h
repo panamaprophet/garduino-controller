@@ -18,7 +18,6 @@ namespace core {
             const char* id = nullptr;
             unsigned long lastAttempt = 0;
 
-            void tryConnect();
             void reconnect();
             void resubscribe();
 
