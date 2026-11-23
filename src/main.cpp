@@ -1,131 +1,42 @@
 #include <Arduino.h>
-#include <ArduinoJson.h>
 #include <core/core.h>
 #include <modules/modules.h>
 
 namespace {
-    constexpr const char* EVENTS_CHANNEL = "events/pub";
-    constexpr const char* EVENT_TEMPERATURE_HIGH = "temperature:high";
-    constexpr const char* EVENT_LIGHT_SWITCH = "light:switch";
-    constexpr unsigned long REBOOT_DELAY_MS = 5 * 1000;
     constexpr unsigned long FAN_RESET_DELAY_MS = 60 * 1000;
-    constexpr unsigned long TELEMETRY_INTERVAL_MS = 10 * 60 * 1000;
 }
-
 
 core::Config config;
 core::Network network;
 core::Mqtt mqtt(network.client);
-core::Time timer;
 core::Scheduler scheduler;
 core::Firmware firmware(network.client);
-core::EventBus eventBus;
 core::MessageBus messageBus(mqtt, config.controllerId);
 
-modules::Fan fan(eventBus, config.pinFan);
-modules::Light light(eventBus, config.pinLight);
-modules::Sensor sensor(eventBus, config.pinSensor);
+modules::Fan fan(config.pinFan);
+modules::Light light(config.pinLight);
+modules::Sensor sensor(config.pinSensor);
 
 core::ModuleRegistry registry({&fan, &light, &sensor});
+core::ProtocolV2 protocol(messageBus, registry, firmware, scheduler);
 
 
-void publishStatus() {
-    auto status = registry.getStatus();
+void onLightChanged(modules::Module& module) {
+    const auto isLightModule = &module == &light;
+    const auto isLightOff = !light.isOn();
 
-    status["event"] = "update";
-
-    char buffer[256];
-
-    serializeJson(status, buffer, sizeof(buffer));
-
-    messageBus.publish(EVENTS_CHANNEL, buffer);
-}
-
-JsonDocument adaptConfig(const JsonObject& raw) {
-    JsonDocument config;
-
-    config["fan"]["defaultSpeed"] = raw["fanSpeed"];
-    config["light"]["isOn"] = raw["isOn"];
-    config["light"]["switchIn"] = raw["switchIn"];
-    config["light"]["duration"] = raw["duration"];
-    config["sensor"]["thresholdTemperature"] = raw["thresholdTemperature"];
-
-    return config;
-}
-
-void onConfigReceived(byte* payload, unsigned int length) {
-    core::Logger::info("config", "configuration received");
-
-    JsonDocument document;
-    DeserializationError error = deserializeJson(document, payload, length);
-
-    if (error) {
-        core::Logger::error("config", "invalid json: %s", error.c_str());
-        return;
+    if (isLightModule && isLightOff) {
+        scheduler.scheduleOnce(FAN_RESET_DELAY_MS, []() { fan.reset(); });
     }
-
-    auto config = adaptConfig(document.as<JsonObject>());
-    registry.apply(config.as<JsonObject>());
-
-    messageBus.publish(EVENTS_CHANNEL, R"({"event":"run"})");
 }
 
-void onStatusRequested(byte* payload, unsigned int length) {
-    core::Logger::info("status", "status requested");
-    publishStatus();
-}
+void onTemperatureChanged(modules::Module& module) {
+    const auto isSensorModule = &module == &sensor;
+    const auto isOverheating = sensor.isOverheating();
 
-void onRebootRequested(byte* payload, unsigned int length) {
-    core::Logger::info("reboot", "reboot requested");
-
-    messageBus.publish(EVENTS_CHANNEL, R"({"event":"reboot"})");
-
-    scheduler.scheduleOnce(REBOOT_DELAY_MS, []() { ESP.restart(); });
-}
-
-void onFirmwareVersionRequested(byte* payload, unsigned int length) {
-    core::Logger::info("firmware", "version requested");
-
-    char message[256];
-
-    snprintf(message, sizeof(message), R"({"version":"%s"})", core::Firmware::version);
-
-    messageBus.publish("firmware/version/pub", message);
-}
-
-void onFirmwareUpdateRequested(byte* payload, unsigned int length) {
-    core::Logger::info("firmware", "update requested");
-
-    JsonDocument document;
-    DeserializationError error = deserializeJson(document, payload, length);
-
-    if (error) {
-        core::Logger::error("firmware", "invalid json: %s", error.c_str());
-        return;
+    if (isSensorModule && isOverheating) {
+        fan.stepUp();
     }
-
-    const char* url = document["url"].as<const char*>();
-    const char* md5 = document["md5"].as<const char*>();
-
-    firmware.update(url, md5);
-}
-
-void onFirmwareUpdateStarted() {
-    messageBus.publish(EVENTS_CHANNEL, R"({"event":"firmware:update:started"})");
-    core::Logger::info("firmware", "update started");
-}
-
-void onFirmwareUpdateSuccess() {
-    messageBus.publish(EVENTS_CHANNEL, R"({"event":"firmware:update:success"})");
-    core::Logger::info("firmware", "update success, rebooting...");
-    scheduler.scheduleOnce(REBOOT_DELAY_MS, []() { ESP.restart(); });
-}
-
-void onFirmwareUpdateError(const char* errorMessage) {
-    char message[256];
-    snprintf(message, sizeof(message), R"({"event":"firmware:update:error","message":"%s"})", errorMessage);
-    messageBus.publish(EVENTS_CHANNEL, message);
-    core::Logger::error("firmware", "update failed: %s", errorMessage);
 }
 
 
@@ -135,38 +46,15 @@ void setup() {
 
     network.connect(config.ssid, config.password);
 
-    timer.sync();
+    core::Time::sync();
 
+    protocol.begin();
+
+    registry.onChange(onLightChanged);
+    registry.onChange(onTemperatureChanged);
+
+    mqtt.onConnect([]() { protocol.onConnected(); });
     mqtt.connect(config.host, config.controllerId);
-
-    firmware.onStart(onFirmwareUpdateStarted);
-    firmware.onSuccess(onFirmwareUpdateSuccess);
-    firmware.onError(onFirmwareUpdateError);
-
-    eventBus.on(EVENT_TEMPERATURE_HIGH, [](const char*) {
-        fan.stepUp();
-    });
-
-    eventBus.on(EVENT_LIGHT_SWITCH, [](const char* data) {
-        char message[128];
-
-        snprintf(message, sizeof(message), R"({"event":"light:switch","isOn":%s})", data);
-        messageBus.publish(EVENTS_CHANNEL, message);
-
-        if (strcmp(data, "false") == 0) {
-            scheduler.scheduleOnce(FAN_RESET_DELAY_MS, []() { fan.reset(); });
-        }
-    });
-
-    messageBus.subscribe("config/sub", onConfigReceived);
-    messageBus.subscribe("status/sub", onStatusRequested);
-    messageBus.subscribe("reboot/sub", onRebootRequested);
-    messageBus.subscribe("firmware/update/sub", onFirmwareUpdateRequested);
-    messageBus.subscribe("firmware/version/sub", onFirmwareVersionRequested);
-
-    scheduler.schedule(TELEMETRY_INTERVAL_MS, publishStatus);
-
-    messageBus.publish("config/pub");
 }
 
 void loop() {

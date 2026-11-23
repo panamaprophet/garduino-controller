@@ -29,3 +29,23 @@ time_t core::Time::sync() {
 
     return now;
 };
+
+uint32_t core::Time::secondsToday() {
+    return static_cast<uint32_t>(time(nullptr) % SECONDS_PER_DAY);
+}
+
+bool core::Time::parseTimeToSeconds(const char* value, uint32_t& seconds) {
+    unsigned int hours;
+    unsigned int minutes;
+    char rest;
+
+    bool isParsed = value && sscanf(value, "%2u:%2u%c", &hours, &minutes, &rest) == 2;
+
+    if (!isParsed || hours > 23 || minutes > 59) {
+        return false;
+    }
+
+    seconds = hours * 3600 + minutes * 60;
+
+    return true;
+}

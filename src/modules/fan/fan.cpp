@@ -5,8 +5,7 @@ namespace {
     constexpr unsigned int PWM_FREQUENCY = 150;
 }
 
-modules::Fan::Fan(core::EventBus& eventBus, int pin)
-    : Module(eventBus), pin(pin) {
+modules::Fan::Fan(int pin): pin(pin) {
     pinMode(pin, OUTPUT);
     analogWrite(pin, minSpeed);
 }
@@ -25,17 +24,25 @@ void modules::Fan::apply(const JsonObject& config) {
 
 JsonDocument modules::Fan::getStatus() const {
     JsonDocument status;
-    status["currentSpeed"] = currentSpeed;
+
+    status["speed"] = currentSpeed;
+
     return status;
 }
 
 void modules::Fan::setSpeed(unsigned int speed) {
+    auto previousSpeed = currentSpeed;
+
     currentSpeed = std::min(std::max(minSpeed, speed), maxSpeed);
 
     core::Logger::info("fan", "speed %d (requested %d)", currentSpeed, speed);
 
     analogWriteFreq(PWM_FREQUENCY);
     analogWrite(pin, currentSpeed);
+
+    if (currentSpeed != previousSpeed) {
+        changed();
+    }
 }
 
 void modules::Fan::stepUp() {

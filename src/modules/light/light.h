@@ -7,11 +7,13 @@
 namespace modules {
     class Light : public Module {
         public:
-            Light(core::EventBus& eventBus, int pin);
+            Light(int pin);
 
             const char* name() const override;
             void apply(const JsonObject& config) override;
             JsonDocument getStatus() const override;
+
+            bool isOn() const;
 
         private:
             static const unsigned int PIN_ON = 255;
@@ -21,8 +23,11 @@ namespace modules {
             Ticker ticker;
             unsigned long checkInterval = 5 * 1000;
 
-            bool isOn = false;
-            unsigned long duration = 0;
-            long switchIn = 0;
+            bool on = false;
+            uint32_t onTime = 12 * 3600;
+            uint32_t duration = 12 * 3600;
+
+            bool nextState() const;
+            void update(bool force = false);
     };
 }

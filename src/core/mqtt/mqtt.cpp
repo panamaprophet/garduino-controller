@@ -1,15 +1,28 @@
 #include <core/mqtt/mqtt.h>
 #include <core/logger/logger.h>
 
+namespace {
+    constexpr uint16_t BUFFER_SIZE = 512;
+    constexpr unsigned long RECONNECT_INTERVAL_MS = 5 * 1000;
+}
+
 core::Mqtt::Mqtt(Client& networkClient) {
     client.setClient(networkClient);
-};
+    client.setBufferSize(BUFFER_SIZE);
 
-void core::Mqtt::resubscribe() {
-    for (auto const& item : callbacks) {
-        client.subscribe(item.first.c_str());
-    }
-}
+    client.setCallback([this](char* topic, byte* payload, unsigned int length) {
+        Logger::info("mqtt", "%s: %.*s", topic, static_cast<int>(length), reinterpret_cast<const char*>(payload));
+
+        auto result = callbacks.find(topic);
+
+        if (result == callbacks.end()) {
+            Logger::error("mqtt", "no handler for %s", topic);
+            return;
+        }
+
+        result->second(payload, length);
+    });
+};
 
 void core::Mqtt::subscribe(const char* topic, MqttCallback callback) {
     Logger::info("mqtt", "subscribing to %s", topic);
@@ -18,57 +31,71 @@ void core::Mqtt::subscribe(const char* topic, MqttCallback callback) {
     client.subscribe(topic);
 }
 
-void core::Mqtt::connect(const char* host, const char* id, uint16 port) {
-    _host = strdup(host);
-    _id = strdup(id);
+void core::Mqtt::onConnect(ConnectCallback callback) {
+    connectCallback = callback;
+}
 
-    Logger::info("mqtt", "connecting...");
+void core::Mqtt::connect(const char* host, const char* id, uint16 port) {
+    this->id = id;
 
     client.setServer(host, port);
 
-    client.setCallback([this](char* _topic, byte* payload, unsigned int length) {
-        std::string topic(_topic);
+    reconnect();
+};
 
-        auto result = callbacks.find(topic);
+void core::Mqtt::reconnect() {
+    if (
+        lastAttempt > 0 &&
+        millis() - lastAttempt < RECONNECT_INTERVAL_MS
+    ) {
+        return;
+    }
 
-        payload[length] = '\0';
+    lastAttempt = millis();
 
-        Logger::info("mqtt", "%s: %s", _topic, payload);
+    Logger::info("mqtt", "connecting...");
 
-        if (result != callbacks.end()) {
-            result->second(payload, length);
-            return;
-        }
-
-        Logger::error("mqtt", "no handler for %s", _topic);
-    });
-
-    client.connect(id);
-
-    if (!client.connected()) {
-        Logger::error("mqtt", "connection failed (rc=%d)", client.state());
+    if (!client.connect(id)) {
+        Logger::error("mqtt", "connection failed (rc=%d), retrying in %lu s", client.state(), RECONNECT_INTERVAL_MS / 1000);
         return;
     }
 
     Logger::info("mqtt", "connected");
 
     resubscribe();
-};
+
+    if (connectCallback) {
+        connectCallback();
+    }
+}
+
+void core::Mqtt::resubscribe() {
+    for (auto const& item : callbacks) {
+        client.subscribe(item.first.c_str());
+    }
+}
 
 void core::Mqtt::publish(const char* topic, const char* payload) {
     if (!client.connected()) {
-        Logger::error("mqtt", "connection lost, reconnecting...");
-        connect(_host, _id);
+        reconnect();
+    }
+
+    if (!client.connected()) {
+        Logger::error("mqtt", "not connected, publish to %s dropped", topic);
+        return;
     }
 
     Logger::info("mqtt", "publish %s: %s", topic, payload);
-    client.publish(topic, payload);
+
+    if (!client.publish(topic, payload)) {
+        Logger::error("mqtt", "publish to %s failed", topic);
+    }
 };
 
 void core::Mqtt::loop() {
     if (!client.connected()) {
-        Logger::error("mqtt", "connection lost, reconnecting...");
-        connect(_host, _id);
+        reconnect();
+        return;
     }
 
     client.loop();

@@ -3,9 +3,10 @@
 #include <Ticker.h>
 #include <vector>
 #include <memory>
+#include <functional>
 
 namespace core {
-    typedef void (*SchedulerCallback)();
+    using SchedulerCallback = std::function<void()>;
 
     class Scheduler {
         public:
