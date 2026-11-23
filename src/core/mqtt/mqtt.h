@@ -19,7 +19,6 @@ namespace core {
             unsigned long lastAttempt = 0;
 
             void reconnect();
-            void resubscribe();
 
         public:
             Mqtt(Client& networkClient);
@@ -27,7 +26,7 @@ namespace core {
             void subscribe(const char* topic, MqttCallback callback);
             void onConnect(ConnectCallback callback);
             void connect(const char* host, const char* id, uint16 port = 8883);
-            void publish(const char* topic, const char* payload = "{}");
+            void publish(const char* topic, const char* payload);
             void loop();
     };
 }

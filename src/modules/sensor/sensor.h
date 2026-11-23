@@ -17,7 +17,6 @@ namespace modules {
             bool isOverheating() const;
 
         private:
-            unsigned int pin;
             Ticker ticker;
             DHT11 sensor;
 
