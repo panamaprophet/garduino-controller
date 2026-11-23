@@ -36,7 +36,6 @@ write_certificates() {
     read_field '.certificates.root' > "$output/root.crt"
     read_field '.certificates.pem' > "$output/controller.cert.pem"
     read_field '.certificates.privateKey' > "$output/controller.private.key"
-    read_field '.certificates.publicKey' > "$output/controller.key"
 
     chmod 600 "$output/controller.private.key"
 }

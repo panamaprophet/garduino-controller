@@ -62,16 +62,12 @@ void core::Mqtt::reconnect() {
 
     Logger::info("mqtt", "connected");
 
-    resubscribe();
+    for (auto const& item : callbacks) {
+        client.subscribe(item.first.c_str());
+    }
 
     if (connectCallback) {
         connectCallback();
-    }
-}
-
-void core::Mqtt::resubscribe() {
-    for (auto const& item : callbacks) {
-        client.subscribe(item.first.c_str());
     }
 }
 
